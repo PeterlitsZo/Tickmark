@@ -1,0 +1,11 @@
+{
+  "name": "tickmark-server",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev --config cloudflare-worker/wrangler.jsonc --local",
+    "db:migrate": "wrangler d1 migrations apply DB --config cloudflare-worker/wrangler.jsonc --local",
+    "build": "wrangler deploy --config cloudflare-worker/wrangler.jsonc --dry-run",
+    "deploy": "wrangler deploy --config cloudflare-worker/wrangler.jsonc"
+  },
+  "devDependencies": { "wrangler": "4.157.0" }
+}

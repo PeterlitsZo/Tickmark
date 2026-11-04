@@ -1,0 +1,26 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "tickmark-server",
+  "main": "build/index.js",
+  "compatibility_date": "2026-11-04",
+  "build": {
+    "cwd": "cloudflare-worker",
+    "command": "worker-build --release --locked",
+    "watch_dir": [
+      "src",
+      "../core/src"
+    ]
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tickmark",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

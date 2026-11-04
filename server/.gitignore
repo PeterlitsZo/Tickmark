@@ -1,0 +1,6 @@
+/target/
+/node_modules/
+/cloudflare-worker/build/
+**/.wrangler/
+**/.dev.vars*
+/cloudflare-worker/wrangler.jsonc
