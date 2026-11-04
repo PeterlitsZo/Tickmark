@@ -286,8 +286,35 @@ async fn handle(mut req: Request, env: Env) -> Result<Response, ApiError> {
 
 #[event(fetch)]
 pub async fn main(req: Request, env: Env, _ctx: Context) -> worker::Result<Response> {
-    match handle(req, env).await {
-        Ok(response) => Ok(response),
-        Err(error) => error.response(),
+    let path = req.path();
+    if path != "/api" && !path.starts_with("/api/") {
+        let navigation = req.headers().get("Sec-Fetch-Mode")?.as_deref() == Some("navigate")
+            || req
+                .headers()
+                .get("Accept")?
+                .is_some_and(|value| value.contains("text/html"));
+        if matches!(req.method(), Method::Get | Method::Head)
+            && !path.starts_with("/assets/")
+            && !path.rsplit('/').next().unwrap_or("").contains('.')
+            && (path == "/" || path == "/calendar" || navigation)
+        {
+            let mut url = req.url()?;
+            url.set_path("/index.html");
+            url.set_query(None);
+            let response = env
+                .assets("ASSETS")?
+                .fetch_request(Request::new(url.as_str(), req.method())?)
+                .await?;
+            return Ok(response);
+        }
+        let mut response = Response::error("Not found", 404)?;
+        response.headers_mut().set("Cache-Control", "no-store")?;
+        return Ok(response);
     }
+    let mut response = match handle(req, env).await {
+        Ok(response) => response,
+        Err(error) => error.response()?,
+    };
+    response.headers_mut().set("Cache-Control", "no-store")?;
+    Ok(response)
 }

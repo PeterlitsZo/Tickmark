@@ -4,12 +4,14 @@ A Rust workspace for completed time entries. `core` owns validation, business op
 
 ## Local development
 
-Requirements: rustup, Node.js 22 or newer, and npm. Run every command below from `server/`. No Cloudflare account is needed locally.
+Requirements: rustup, Node.js 22.12 or newer, and npm. Run every command below from `server/`. No Cloudflare account is needed locally.
 
 ```sh
 rustup show
 cargo install worker-build --version 0.8.7 --locked
 npm ci
+npm --prefix ../web ci
+npm run build:web
 cp -n cloudflare-worker/wrangler.example.jsonc cloudflare-worker/wrangler.jsonc
 npm run db:migrate
 npm run dev
@@ -18,6 +20,23 @@ npm run dev
 `rust-toolchain.toml` selects Rust 1.97.1, rustfmt, Clippy, and the `wasm32-unknown-unknown` target. Wrangler is pinned in `package-lock.json`. `worker-build` must be on PATH; its version is pinned in the installation command above. The first build downloads its Wasm build tools.
 
 The API runs at `http://localhost:8787`. Local D1 data persists under `cloudflare-worker/.wrangler/state/` across restarts. The tracked `wrangler.example.jsonc` contains a placeholder database ID suitable for local development. Copy it to the ignored `wrangler.jsonc` once; keep deployment-specific account and database IDs in that local file. The copy command preserves any existing configuration. Local commands always use isolated local storage. There is no authentication or token configuration in this version.
+
+## Web client
+
+The React frontend is built from `../web` and uploaded with the Worker. The example configuration binds `../../web/dist` as `ASSETS`. Existing installations must merge the example's `assets` configuration into their ignored `wrangler.jsonc` while preserving account, database, and domain settings.
+
+`/api` and `/api/*` always run the Rust API handler. Page navigation falls back to `index.html` through the asset binding; missing scripts remain 404. HTML uses `no-cache`, hashed assets use immutable caching, and API responses use `no-store`. Both frontend assets and Wasm belong to one deployment and should be rolled back together.
+
+For an isolated local web environment using the tracked example config:
+
+```sh
+npm run db:migrate:web
+npm run dev:web
+```
+
+Open http://localhost:8791. This workflow stores local D1 data under `.wrangler/web-local`. For frontend hot reload, run `TICKMARK_DEV_API=http://127.0.0.1:8791 npm --prefix ../web run dev` in another terminal; the override targets the isolated Worker on port 8791. Without that override, the web development server proxies to `https://tickmark.peterlits.me`. Restart Wrangler after rebuilding static assets so its local manifest includes the new hashed files.
+
+`npm run build:local` performs the combined frontend and Worker dry run with the tracked example config. See [the web README](../web/README.md) for full usage and [validation notes](../web/VALIDATION.md) for verification coverage.
 
 ## API
 
@@ -98,7 +117,7 @@ Errors follow the [AIP-193 HTTP JSON structure](https://google.aip.dev/193#http1
 | 415 | INVALID_ARGUMENT | UNSUPPORTED_MEDIA_TYPE |
 | 500 | INTERNAL | INTERNAL_ERROR |
 
-405 includes an Allow header. The 405 and 415 mappings preserve this API's HTTP semantics rather than strictly adopting Google's RPC-to-HTTP mapping. CORS is deferred until a browser client's origin is defined.
+405 includes an Allow header. The 405 and 415 mappings preserve this API's HTTP semantics rather than strictly adopting Google's RPC-to-HTTP mapping. The browser client uses relative API URLs and is served from the same origin through Worker Static Assets. Local Vite development proxies `/api` to the Worker; CORS is not required.
 
 ## Build checks
 
@@ -112,7 +131,7 @@ cargo check -p tickmark-cloudflare-worker --target wasm32-unknown-unknown --lock
 npm run build
 ```
 
-`npm run build` compiles Wasm, generates the JavaScript entrypoint, and performs a Wrangler deployment dry run. It does not deploy or create remote resources. The build runs in the Worker crate because the workspace root is a virtual Cargo manifest. Rust accesses bindings through the SDK, so TypeScript Env generation and Node.js compatibility flags are unnecessary here.
+`npm run build` first builds `../web/dist`, then compiles Wasm, generates the JavaScript entrypoint, and performs a Wrangler deployment dry run. It does not deploy or create remote resources. The build runs in the Worker crate because the workspace root is a virtual Cargo manifest. Rust accesses bindings through the SDK, so TypeScript Env generation and Node.js compatibility flags are unnecessary here.
 
 ## Remote deployment
 
