@@ -1,0 +1,23 @@
+:root {
+  --font-body: 13px;
+  --font-title: 18px;
+  --font-label: 12px;
+  --space-field: 16px;
+  --navigation-width: 204px;
+  --details-width: 304px;
+  --header-height: 56px;
+  --notification-height: min(176px, 24dvh);
+  --notification-reserve: calc(var(--notification-height) + 32px);
+  color-scheme: light;
+  --canvas: #fbfbfa;
+  --surface: #ffffff;
+  --ink: #292d29;
+  --muted: #747970;
+  --line: #e8eae4;
+  --line-strong: #d5d9d0;
+  --wash: #f1f2ed;
+  --accent: #425d48;
+  --block: #e7ede3;
+  --block-border: #a6b69e;
+  --danger: #a33d37;
+}

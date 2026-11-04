@@ -1,0 +1,14 @@
+.layout {
+  display: grid;
+  grid-template-columns: var(--navigation-width) minmax(0, 1fr) var(--details-width);
+  height: 100dvh;
+  overflow: hidden;
+}
+
+@media (max-width: 1099px) {
+  .layout { grid-template-columns: minmax(0, 1fr) var(--details-width); }
+}
+
+@media (max-width: 759px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+}
