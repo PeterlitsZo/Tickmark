@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="360" viewBox="0 0 960 360"><rect width="960" height="360" fill="#E8EAE4"/><defs><clipPath id="circle"><circle cx="512" cy="512" r="341"/></clipPath><clipPath id="rounded"><rect x="171" y="171" width="682" height="682" rx="150"/></clipPath></defs><g transform="translate(6 -4) scale(.3)"><g clip-path="url(#circle)"><rect width="1024" height="1024" fill="#FBFBFA"/><ns0:g xmlns:ns0="http://www.w3.org/2000/svg" fill="#292D29">
+    <ns0:rect x="292" y="304" width="88" height="48" rx="12" />
+    <ns0:rect x="292" y="488" width="88" height="48" rx="12" />
+    <ns0:rect x="292" y="672" width="88" height="48" rx="12" />
+    <ns0:rect x="428" y="304" width="304" height="280" rx="40" />
+  </ns0:g>
+  <ns0:rect xmlns:ns0="http://www.w3.org/2000/svg" x="428" y="632" width="304" height="88" rx="24" fill="#A6B69E" />
+</g></g><text x="48" y="320" font-family="Helvetica, sans-serif" font-size="18" fill="#292D29">Circle</text><g transform="translate(326 -4) scale(.3)"><g clip-path="url(#rounded)"><rect width="1024" height="1024" fill="#FBFBFA"/><ns0:g xmlns:ns0="http://www.w3.org/2000/svg" fill="#292D29">
+    <ns0:rect x="292" y="304" width="88" height="48" rx="12" />
+    <ns0:rect x="292" y="488" width="88" height="48" rx="12" />
+    <ns0:rect x="292" y="672" width="88" height="48" rx="12" />
+    <ns0:rect x="428" y="304" width="304" height="280" rx="40" />
+  </ns0:g>
+  <ns0:rect xmlns:ns0="http://www.w3.org/2000/svg" x="428" y="632" width="304" height="88" rx="24" fill="#A6B69E" />
+</g></g><text x="368" y="320" font-family="Helvetica, sans-serif" font-size="18" fill="#292D29">Rounded square</text><g transform="translate(646 -4) scale(.3)"><g clip-path="url(#circle)"><rect width="1024" height="1024" fill="#FBFBFA"/><ns0:g xmlns:ns0="http://www.w3.org/2000/svg" fill="#292D29">
+    <ns0:rect x="292" y="304" width="88" height="48" rx="12" />
+    <ns0:rect x="292" y="488" width="88" height="48" rx="12" />
+    <ns0:rect x="292" y="672" width="88" height="48" rx="12" />
+    <ns0:rect x="428" y="304" width="304" height="280" rx="40" />
+  </ns0:g>
+  <ns0:rect xmlns:ns0="http://www.w3.org/2000/svg" x="428" y="632" width="304" height="88" rx="24" fill="#292D29" />
+</g></g><text x="688" y="320" font-family="Helvetica, sans-serif" font-size="18" fill="#292D29">Themed silhouette</text></svg>

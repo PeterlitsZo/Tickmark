@@ -1,0 +1,77 @@
+diff --git a/node_modules/react-native-ui-datepicker/lib/commonjs/components/time-picker.js b/node_modules/react-native-ui-datepicker/lib/commonjs/components/time-picker.js
+index 7ecac97..a22e57b 100644
+--- a/node_modules/react-native-ui-datepicker/lib/commonjs/components/time-picker.js
++++ b/node_modules/react-native-ui-datepicker/lib/commonjs/components/time-picker.js
+@@ -126,7 +126,7 @@ const defaultStyles = _reactNative.StyleSheet.create({
+     alignItems: 'center',
+     justifyContent: 'center',
+     width: _enums.CONTAINER_HEIGHT / 2,
+-    height: _enums.CONTAINER_HEIGHT / 2
++    height: 220
+   },
+   timeSeparator: {
+     marginHorizontal: 5
+diff --git a/node_modules/react-native-ui-datepicker/lib/commonjs/components/time-picker/wheel-picker/wheel-picker.js b/node_modules/react-native-ui-datepicker/lib/commonjs/components/time-picker/wheel-picker/wheel-picker.js
+index 0140365..9fbad51 100644
+--- a/node_modules/react-native-ui-datepicker/lib/commonjs/components/time-picker/wheel-picker/wheel-picker.js
++++ b/node_modules/react-native-ui-datepicker/lib/commonjs/components/time-picker/wheel-picker/wheel-picker.js
+@@ -101,7 +101,7 @@ const WheelPicker = ({
+     var _flatListRef$current;
+     (_flatListRef$current = flatListRef.current) === null || _flatListRef$current === void 0 || _flatListRef$current.scrollToIndex({
+       index: selectedIndex,
+-      animated: _reactNative.Platform.OS === 'ios'
++      animated: false
+     });
+   }, [selectedIndex, itemHeight]);
+   return /*#__PURE__*/_react.default.createElement(_reactNative.View, _extends({
+diff --git a/node_modules/react-native-ui-datepicker/lib/module/components/time-picker.js b/node_modules/react-native-ui-datepicker/lib/module/components/time-picker.js
+index b4405a9..e7195e3 100644
+--- a/node_modules/react-native-ui-datepicker/lib/module/components/time-picker.js
++++ b/node_modules/react-native-ui-datepicker/lib/module/components/time-picker.js
+@@ -117,7 +117,7 @@ const defaultStyles = StyleSheet.create({
+     alignItems: 'center',
+     justifyContent: 'center',
+     width: CONTAINER_HEIGHT / 2,
+-    height: CONTAINER_HEIGHT / 2
++    height: 220
+   },
+   timeSeparator: {
+     marginHorizontal: 5
+diff --git a/node_modules/react-native-ui-datepicker/lib/module/components/time-picker/wheel-picker/wheel-picker.js b/node_modules/react-native-ui-datepicker/lib/module/components/time-picker/wheel-picker/wheel-picker.js
+index 1c11309..445c380 100644
+--- a/node_modules/react-native-ui-datepicker/lib/module/components/time-picker/wheel-picker/wheel-picker.js
++++ b/node_modules/react-native-ui-datepicker/lib/module/components/time-picker/wheel-picker/wheel-picker.js
+@@ -92,7 +92,7 @@ const WheelPicker = ({
+     var _flatListRef$current;
+     (_flatListRef$current = flatListRef.current) === null || _flatListRef$current === void 0 || _flatListRef$current.scrollToIndex({
+       index: selectedIndex,
+-      animated: Platform.OS === 'ios'
++      animated: false
+     });
+   }, [selectedIndex, itemHeight]);
+   return /*#__PURE__*/React.createElement(View, _extends({
+diff --git a/node_modules/react-native-ui-datepicker/src/components/time-picker.tsx b/node_modules/react-native-ui-datepicker/src/components/time-picker.tsx
+index d649b82..7b07a04 100644
+--- a/node_modules/react-native-ui-datepicker/src/components/time-picker.tsx
++++ b/node_modules/react-native-ui-datepicker/src/components/time-picker.tsx
+@@ -165,7 +165,7 @@ const defaultStyles = StyleSheet.create({
+     alignItems: 'center',
+     justifyContent: 'center',
+     width: CONTAINER_HEIGHT / 2,
+-    height: CONTAINER_HEIGHT / 2,
++    height: 220,
+   },
+   timeSeparator: {
+     marginHorizontal: 5,
+diff --git a/node_modules/react-native-ui-datepicker/src/components/time-picker/wheel-picker/wheel-picker.tsx b/node_modules/react-native-ui-datepicker/src/components/time-picker/wheel-picker/wheel-picker.tsx
+index a694882..0f24083 100644
+--- a/node_modules/react-native-ui-datepicker/src/components/time-picker/wheel-picker/wheel-picker.tsx
++++ b/node_modules/react-native-ui-datepicker/src/components/time-picker/wheel-picker/wheel-picker.tsx
+@@ -148,6 +148,6 @@ const WheelPicker: React.FC<Props> = ({
+   useEffect(() => {
+     flatListRef.current?.scrollToIndex({
+       index: selectedIndex,
+-      animated: Platform.OS === 'ios',
++      animated: false,
+     });
+   }, [selectedIndex, itemHeight]);

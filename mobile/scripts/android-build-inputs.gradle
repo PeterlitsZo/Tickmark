@@ -1,0 +1,13 @@
+// Apply with: ./gradlew -I ../scripts/android-build-inputs.gradle :app:assembleRelease
+// Track Expo's API origin to prevent stale bundles when switching environments.
+gradle.beforeProject { project ->
+    project.tasks.configureEach { task ->
+        if (task.name.startsWith('createBundle') && task.name.endsWith('JsAndAssets')) {
+            task.inputs.property('tickmarkApiOrigin',
+                project.providers.environmentVariable('EXPO_PUBLIC_API_BASE_URL').getOrElse('from-dotenv'))
+            task.inputs.files(project.fileTree(project.rootDir.parentFile) {
+                include '.env', '.env.local', '.env.production', '.env.production.local'
+            }).withPropertyName('expoEnvironmentFiles')
+        }
+    }
+}

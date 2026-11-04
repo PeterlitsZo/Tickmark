@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600"><rect width="1000" height="600" fill="#E8EAE4"/><text x="48" y="52" font-family="Helvetica, sans-serif" font-size="22" fill="#292D29">A · Timeline</text><g transform="translate(48 80) scale(0.349609375)"><rect width="1024" height="1024" fill="#FBFBFA"/><g transform="translate(512 512) scale(1.36) translate(-512 -512)"><ns0:g xmlns:ns0="http://www.w3.org/2000/svg" fill="#292D29">
+    <ns0:rect x="292" y="304" width="88" height="48" rx="12" />
+    <ns0:rect x="292" y="488" width="88" height="48" rx="12" />
+    <ns0:rect x="292" y="672" width="88" height="48" rx="12" />
+    <ns0:rect x="428" y="304" width="304" height="280" rx="40" />
+  </ns0:g>
+  <ns0:rect xmlns:ns0="http://www.w3.org/2000/svg" x="428" y="632" width="304" height="88" rx="24" fill="#A6B69E" />
+</g></g><g transform="translate(48 480) scale(0.0234375)"><rect width="1024" height="1024" fill="#FBFBFA"/><g transform="translate(512 512) scale(1.36) translate(-512 -512)"><ns0:g xmlns:ns0="http://www.w3.org/2000/svg" fill="#292D29">
+    <ns0:rect x="292" y="304" width="88" height="48" rx="12" />
+    <ns0:rect x="292" y="488" width="88" height="48" rx="12" />
+    <ns0:rect x="292" y="672" width="88" height="48" rx="12" />
+    <ns0:rect x="428" y="304" width="304" height="280" rx="40" />
+  </ns0:g>
+  <ns0:rect xmlns:ns0="http://www.w3.org/2000/svg" x="428" y="632" width="304" height="88" rx="24" fill="#A6B69E" />
+</g></g><g transform="translate(112 468) scale(0.046875)"><rect width="1024" height="1024" fill="#FBFBFA"/><g transform="translate(512 512) scale(1.36) translate(-512 -512)"><ns0:g xmlns:ns0="http://www.w3.org/2000/svg" fill="#292D29">
+    <ns0:rect x="292" y="304" width="88" height="48" rx="12" />
+    <ns0:rect x="292" y="488" width="88" height="48" rx="12" />
+    <ns0:rect x="292" y="672" width="88" height="48" rx="12" />
+    <ns0:rect x="428" y="304" width="304" height="280" rx="40" />
+  </ns0:g>
+  <ns0:rect xmlns:ns0="http://www.w3.org/2000/svg" x="428" y="632" width="304" height="88" rx="24" fill="#A6B69E" />
+</g></g><g font-family="Helvetica, sans-serif" font-size="14" fill="#747970"><text x="48" y="554">24 px</text><text x="112" y="554">48 px</text></g><text x="548" y="52" font-family="Helvetica, sans-serif" font-size="22" fill="#292D29">B · Interval</text><g transform="translate(548 80) scale(0.349609375)"><rect width="1024" height="1024" fill="#FBFBFA"/><g transform="translate(512 512) scale(1.36) translate(-512 -512)"><ns0:path xmlns:ns0="http://www.w3.org/2000/svg" d="M376 320H304V704H376" fill="none" stroke="#292D29" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" />
+  <ns0:rect xmlns:ns0="http://www.w3.org/2000/svg" x="440" y="320" width="280" height="384" rx="40" fill="#425D48" />
+  <ns0:path xmlns:ns0="http://www.w3.org/2000/svg" d="M508 400H652M508 624H652" stroke="#FBFBFA" stroke-width="32" stroke-linecap="round" />
+</g></g><g transform="translate(548 480) scale(0.0234375)"><rect width="1024" height="1024" fill="#FBFBFA"/><g transform="translate(512 512) scale(1.36) translate(-512 -512)"><ns0:path xmlns:ns0="http://www.w3.org/2000/svg" d="M376 320H304V704H376" fill="none" stroke="#292D29" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" />
+  <ns0:rect xmlns:ns0="http://www.w3.org/2000/svg" x="440" y="320" width="280" height="384" rx="40" fill="#425D48" />
+  <ns0:path xmlns:ns0="http://www.w3.org/2000/svg" d="M508 400H652M508 624H652" stroke="#FBFBFA" stroke-width="32" stroke-linecap="round" />
+</g></g><g transform="translate(612 468) scale(0.046875)"><rect width="1024" height="1024" fill="#FBFBFA"/><g transform="translate(512 512) scale(1.36) translate(-512 -512)"><ns0:path xmlns:ns0="http://www.w3.org/2000/svg" d="M376 320H304V704H376" fill="none" stroke="#292D29" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" />
+  <ns0:rect xmlns:ns0="http://www.w3.org/2000/svg" x="440" y="320" width="280" height="384" rx="40" fill="#425D48" />
+  <ns0:path xmlns:ns0="http://www.w3.org/2000/svg" d="M508 400H652M508 624H652" stroke="#FBFBFA" stroke-width="32" stroke-linecap="round" />
+</g></g><g font-family="Helvetica, sans-serif" font-size="14" fill="#747970"><text x="548" y="554">24 px</text><text x="612" y="554">48 px</text></g></svg>
