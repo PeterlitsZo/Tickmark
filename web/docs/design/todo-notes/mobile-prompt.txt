@@ -1,0 +1,16 @@
+Use case: ui-mockup.
+Generate one high-fidelity portrait screenshot of a proposed mobile-web todo Notes editor for Tickmark. Input image 1 is the CURRENT mobile calendar and todos page: use it to match its exact quiet native-web typography, small corner radii, off-white and white surfaces, stone gray borders, dark text, muted green #425d48 buttons. Input image 2 is the proposed desktop Notes editor: match its fields, wording, and typography. This is a narrow-screen adaptation of that editor, not a new app or new brand.
+Single screen at approximately 390x844 proportions, crisp high-resolution image, edge to edge screenshot, no phone hardware, no external background, no captions.
+
+On mobile, opening Notes presents a full-height editing sheet covering the calendar and list, so there is real space for writing. The background app is not visible. The top toolbar is white, thin bottom border, 64px high. On the left a readable "Cancel" text button in dark muted green; center heading "Edit todo" in 16px semibold; right a compact green filled "Save" button with 6px radius, 44px hit area.
+Body background #fafaf9 with 20px side padding. About 24px below header, show a small green check followed by muted "Completed" as a noninteractive status indicator. This must communicate that writing notes will not reopen the task.
+Then label "Title" and a full-width white bordered input, 48px high, text "Review the release checklist" (normal text, no strikethrough in input).
+Below with 24px gap label "Notes" and muted helper "Details, outcomes, or follow-up."
+A large full-width white bordered textarea starts around y=255 and extends to around y=710. Use thin muted-green focus outline, 5px radius, 16px text with comfortable line height, 12px internal padding. Text exactly:
+"Checked the release checklist.
+Migration and smoke checks passed.
+
+Follow-up
+Update the setup guide tomorrow."
+Below textarea on left "Unsaved changes"; on right "Up to 10,000 characters", both small muted text. Keep generous bottom safe-area space.
+Show neither an on-screen keyboard nor a rich-text toolbar. No floating cards, no gradients, no decorative illustrations, no new navigation, no extra commentary. Keep every control readable. All interface copy English.

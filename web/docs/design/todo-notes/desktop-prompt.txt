@@ -1,0 +1,22 @@
+Use case: ui-mockup.
+Create a precise high-fidelity proposed UI screenshot for Tickmark's existing web app, based on the attached CURRENT desktop screenshot. This is a design proposal, not a new visual identity. Output a single crisp landscape desktop screenshot, approximately 1440x1000 or higher resolution in the same aspect ratio, no device frame, no decorative background, no annotations.
+
+REFERENCE INVARIANTS: keep the left 212px mini-calendar, middle calendar, existing top bar, timeline blocks, all spacing, fonts, off-white #fafaf9 surfaces, white calendar, dark text #292524, thin stone borders #e7e5e4 and muted green #425d48 controls visually identical to the screenshot. Right Todos sidebar remains 368px wide, not a modal, and uses the existing compact sans-serif scale. Preserve one unified task list in exactly the same order and small square checkboxes. Never add Open/Completed tabs, sections, a dashboard banner, new navigation, large task cards, gradients, or shadows around rows.
+
+CHANGE ONLY the right sidebar to show the proposed inline Notes editor on a completed task.
+Keep header "Todos  2 open" with collapse/refresh icons and existing "Add a todo..." input.
+Task 1 "Prepare next week’s priorities" remains unchecked; below it show a subtle small note icon and a muted two-line preview "Outline the three most important\noutcomes for next week." at the same left inset as title.
+Task 2 "Review the release checklist" remains checked with muted strikethrough ONLY on its task-row title. Its trailing more menu icon remains subtle. Directly beneath this row expand a flat inline editor indented to align with the title (not a floating card). The editor has:
+small label "Title"
+a white bordered single-line field "Review the release checklist" with normal readable text (no strikethrough in the editable field)
+small label "Notes", and on its right a muted "Completed" text with small green check (not another interactive status control).
+Helper text: "Details, outcomes, or follow-up."
+A tall white multi-line textarea, thin muted-green focus border, about 220px high, modest 5px radius, with text exactly:
+"Checked the release checklist.
+Migration and smoke checks passed.
+
+Follow-up
+Update the setup guide tomorrow."
+At the bottom below textarea, small muted helper text on the left "Unsaved changes" and on the right "Up to 10,000 characters". Below that align buttons to right: neutral bordered "Cancel" then green "Save". Padding and typography should feel like the existing compact entry editor, with generous enough note-writing space.
+After this expanded task show task 3 unchecked "Update the project documentation" and task 4 checked strikethrough "Send the weekly summary" with a muted preview under task 4 "Sent to the team. Next review on Friday." Notes preview must NEVER have strikethrough.
+Do not show a completion toast while the editor is open. All UI copy is English. The resulting screenshot must feel like a small native addition to this exact existing product.
