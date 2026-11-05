@@ -27,6 +27,7 @@ impl TodoFilter {
             let context = simple_context! {
                 "id": todo.id.to_string(),
                 "title": todo.title.clone(),
+                "description": todo.description.clone(),
                 "status": todo.status.as_str(),
                 "created_at": todo.created_at,
                 "updated_at": todo.updated_at,

@@ -7,12 +7,13 @@ use crate::repository::{check, storage};
 
 pub struct D1TodoRepository(pub D1Database);
 
-const COLUMNS: &str = "CAST(id AS TEXT) AS id, title, status, created_at, updated_at";
+const COLUMNS: &str = "CAST(id AS TEXT) AS id, title, description, status, created_at, updated_at";
 
 #[derive(Deserialize)]
 struct Row {
     id: String,
     title: String,
+    description: String,
     status: String,
     created_at: i64,
     updated_at: i64,
@@ -25,6 +26,7 @@ impl TryFrom<Row> for Todo {
         Ok(Self {
             id: row.id.parse().map_err(storage)?,
             title: row.title,
+            description: row.description,
             status: row.status.parse().map_err(storage)?,
             created_at: row.created_at,
             updated_at: row.updated_at,
@@ -36,10 +38,14 @@ impl TodoRepository for D1TodoRepository {
     async fn create(&self, input: CreateTodo, now: i64) -> Result<Todo, Error> {
         self.0
             .prepare(formatdoc! { r#"
-            INSERT INTO todos (title, created_at, updated_at) VALUES (?1, ?2, ?2)
+            INSERT INTO todos (title, description, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)
             RETURNING {COLUMNS}
         "# })
-            .bind(&[input.title.into(), (now as f64).into()])
+            .bind(&[
+                input.title.into(),
+                input.description.into(),
+                (now as f64).into(),
+            ])
             .map_err(storage)?
             .first::<Row>(None)
             .await
@@ -73,11 +79,13 @@ impl TodoRepository for D1TodoRepository {
             UPDATE todos
             SET title = COALESCE(?1, title),
                 status = COALESCE(?2, status),
+                description = COALESCE(?3, description),
                 updated_at = CASE
                     WHEN (?1 IS NOT NULL AND ?1 != title)
-                      OR (?2 IS NOT NULL AND ?2 != status) THEN ?3
+                      OR (?2 IS NOT NULL AND ?2 != status)
+                      OR (?3 IS NOT NULL AND ?3 != description) THEN ?4
                     ELSE updated_at END
-            WHERE id = ?4
+            WHERE id = ?5
             RETURNING {COLUMNS}
         "# })
             .bind(&[
@@ -88,6 +96,10 @@ impl TodoRepository for D1TodoRepository {
                 input
                     .status
                     .map(|s| s.as_str().into())
+                    .unwrap_or(worker::wasm_bindgen::JsValue::NULL),
+                input
+                    .description
+                    .map(Into::into)
                     .unwrap_or(worker::wasm_bindgen::JsValue::NULL),
                 (now as f64).into(),
                 id.to_string().into(),

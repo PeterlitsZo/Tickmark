@@ -12,7 +12,26 @@ use tickmark_core::{EntryInput, EntryService, Error as CoreError, TimeEntry, Tim
 use worker::{Context, Env, Method, Request, Response, event};
 
 const COLLECTION: &str = "/api/v1/entries";
-const MAX_BODY_BYTES: usize = 16 * 1024;
+enum JsonBodyLimit {
+    Standard,
+    Todo,
+}
+
+impl JsonBodyLimit {
+    fn bytes(&self) -> usize {
+        match self {
+            Self::Standard => 16 * 1024,
+            Self::Todo => 128 * 1024,
+        }
+    }
+
+    fn message(&self) -> &'static str {
+        match self {
+            Self::Standard => "JSON request bodies must not exceed 16384 bytes.",
+            Self::Todo => "JSON request bodies must not exceed 131072 bytes.",
+        }
+    }
+}
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -193,6 +212,14 @@ async fn json_input<T: serde::de::DeserializeOwned>(
     req: &mut Request,
     fields_message: &'static str,
 ) -> Result<T, ApiError> {
+    json_input_with_limit(req, fields_message, JsonBodyLimit::Standard).await
+}
+
+async fn json_input_with_limit<T: serde::de::DeserializeOwned>(
+    req: &mut Request,
+    fields_message: &'static str,
+    limit: JsonBodyLimit,
+) -> Result<T, ApiError> {
     let content_type = req
         .headers()
         .get("Content-Type")
@@ -219,11 +246,8 @@ async fn json_input<T: serde::de::DeserializeOwned>(
     while let Some(chunk) = stream.next().await {
         let chunk =
             chunk.map_err(|_| ApiError::field("body", "Could not read the request body."))?;
-        if bytes.len() + chunk.len() > MAX_BODY_BYTES {
-            return Err(ApiError::field(
-                "body",
-                "JSON request bodies must not exceed 16384 bytes.",
-            ));
+        if bytes.len() + chunk.len() > limit.bytes() {
+            return Err(ApiError::field("body", limit.message()));
         }
         bytes.extend_from_slice(&chunk);
     }

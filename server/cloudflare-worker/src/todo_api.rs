@@ -4,7 +4,10 @@ use serde_json::json;
 use tickmark_core::{CreateTodo, Error, Todo, TodoService, UpdateTodo};
 use worker::{Date, Env, Method, Request, Response};
 
-use crate::{ApiError, integer, internal, json_input, todo_repository::D1TodoRepository};
+use crate::{
+    ApiError, JsonBodyLimit, integer, internal, json_input_with_limit,
+    todo_repository::D1TodoRepository,
+};
 
 pub(crate) const COLLECTION: &str = "/api/v1/todos";
 
@@ -12,6 +15,8 @@ pub(crate) const COLLECTION: &str = "/api/v1/todos";
 #[serde(deny_unknown_fields)]
 struct CreateInput {
     title: String,
+    #[serde(default)]
+    description: String,
 }
 
 // Missing fields default to None; present null values must fail deserialization.
@@ -25,6 +30,8 @@ struct PatchInput {
     #[serde(default, deserialize_with = "present")]
     title: Option<String>,
     #[serde(default, deserialize_with = "present")]
+    description: Option<String>,
+    #[serde(default, deserialize_with = "present")]
     status: Option<String>,
 }
 
@@ -32,6 +39,7 @@ struct PatchInput {
 struct Output {
     id: String,
     title: String,
+    description: String,
     status: &'static str,
     created_at: i64,
     updated_at: i64,
@@ -42,6 +50,7 @@ impl From<Todo> for Output {
         Self {
             id: todo.id.to_string(),
             title: todo.title,
+            description: todo.description,
             status: todo.status.as_str(),
             created_at: todo.created_at,
             updated_at: todo.updated_at,
@@ -111,9 +120,15 @@ pub(crate) async fn handle(mut req: Request, env: Env) -> Result<Response, ApiEr
     match (method, id) {
         (Method::Post, None) => {
             let input: CreateInput =
-                json_input(&mut req, "Provide only title as a string; it is required.").await?;
+                json_input_with_limit(&mut req, "Provide title as a string and optionally description as a string; null and unknown fields are not allowed.", JsonBodyLimit::Todo).await?;
             let todo = service
-                .create(CreateTodo { title: input.title }, now())
+                .create(
+                    CreateTodo {
+                        title: input.title,
+                        description: input.description,
+                    },
+                    now(),
+                )
                 .await?;
             Ok(Response::from_json(&Output::from(todo))
                 .map_err(internal)?
@@ -130,9 +145,10 @@ pub(crate) async fn handle(mut req: Request, env: Env) -> Result<Response, ApiEr
             Response::from_json(&json!({"items": items})).map_err(internal)
         }
         (Method::Patch, Some(id)) => {
-            let input: PatchInput = json_input(
+            let input: PatchInput = json_input_with_limit(
                 &mut req,
-                "Provide title and/or status as strings; null and unknown fields are not allowed.",
+                "Provide title, status, and/or description as strings; null and unknown fields are not allowed.",
+                JsonBodyLimit::Todo,
             )
             .await?;
             let todo = service
@@ -140,6 +156,7 @@ pub(crate) async fn handle(mut req: Request, env: Env) -> Result<Response, ApiEr
                     id,
                     UpdateTodo {
                         title: input.title,
+                        description: input.description,
                         status: input.status.map(|s| s.parse()).transpose()?,
                     },
                     now(),

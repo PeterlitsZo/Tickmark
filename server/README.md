@@ -205,13 +205,13 @@ All routes remain unauthenticated, just like the existing entries API.
 
 | Method | Path | Result |
 | --- | --- | --- |
-| POST | `/api/v1/todos` | 201 with a new OPEN todo; body contains only `title` |
+| POST | `/api/v1/todos` | 201 with a new OPEN todo; body requires `title`, accepts optional `description` |
 | GET | `/api/v1/todos` | 200 with `{ "items": [...] }`, including all statuses |
 | GET | `/api/v1/todos?filter=...` | 200 with matching items, filtered in memory |
-| PATCH | `/api/v1/todos/:id` | 200 with the updated todo; provide `title` and/or `status` |
+| PATCH | `/api/v1/todos/:id` | 200 with the updated todo; provide at least one of `title`, `status`, `description` |
 | DELETE | `/api/v1/todos/:id` | 204 without a body; deletion is permanent |
 
-A todo contains `id` (a decimal string), `title`, `status` (`OPEN` or `COMPLETED`),
+A todo contains `id` (a decimal string), `title`, `description`, `status` (`OPEN` or `COMPLETED`),
 `created_at`, and `updated_at`. Timestamps are server-generated integer UNIX
 seconds. Creation sets both timestamps and defaults status to OPEN. There is no
 completion timestamp. All list results are ordered by numeric ID descending.
@@ -221,20 +221,51 @@ Titles contain 1–500 Unicode scalar values. **Titles are preserved exactly**:
 no trimming or normalization, and whitespace-only titles are accepted. Empty
 strings are rejected. This differs from the existing entries title rules.
 
+Descriptions contain 0–10,000 Unicode scalar values and preserve whitespace,
+newlines, and Unicode exactly. Responses always include a string description.
+Omitting it during creation defaults to `""`; setting it to `""` during PATCH
+clears it. Both OPEN and COMPLETED todos allow editing descriptions. Completing
+or reopening a todo preserves its description. This is one editable plain-text
+note, without comment history, authors, attachments, or HTML rendering.
+
 PATCH is partial: omitted fields stay unchanged, while explicit nulls, an empty
 object, unknown fields, and invalid types are rejected. Status values are case
 sensitive. Set `{"status":"COMPLETED"}` to complete or `{"status":"OPEN"}` to
 reopen. Repeating identical values preserves `updated_at`; changing whitespace
 counts as an edit. Multiple edits in the same second can share a timestamp, so
-`updated_at` is not a version token. Title and status updates are atomic, and
+`updated_at` is not a version token. Title, status, and description updates are atomic, and
 concurrent edits to different fields do not overwrite each other. Concurrent
 edits to the same field are last-write-wins.
 
 POST rejects client-supplied IDs, timestamps, or status. Duplicate titles are
 allowed; POST has no retry deduplication. IDs must be positive integers in the
 signed 64-bit range. Updating or deleting a missing todo returns 404 with
-`TODO_NOT_FOUND`; repeated deletion also returns 404. Existing JSON body limits,
+`TODO_NOT_FOUND`; repeated deletion also returns 404. Todo POST/PATCH JSON bodies
+are limited to 128 KiB (131072 bytes), checked while streaming, independently of
+the scalar limit. Entries and categories retain their 16 KiB limit. Existing
 Content-Type handling, error envelopes, and `Cache-Control: no-store` apply.
+
+Examples of request bodies:
+
+```json
+{"title":"Review release","description":"Check the migration steps."}
+```
+
+After completion, PATCH only the description to leave status and title unchanged:
+
+```json
+{"description":"Completed. Follow up on the documentation."}
+```
+
+Complete and save a note atomically, or clear the note in a subsequent PATCH:
+
+```json
+{"status":"COMPLETED","description":"Verified the release."}
+```
+
+```json
+{"description":""}
+```
 
 ### Filtering
 
@@ -244,13 +275,14 @@ padding** (`-` and `_`, no trailing `=`). Do not encode a JSON object. Only the
 is not implemented. Omitted, empty, or decoded whitespace-only filters return all
 items. Unknown or repeated query parameters return `INVALID_FIELD`.
 
-The expression context exposes string fields `id`, `title`, `status`, and i64
+The expression context exposes string fields `id`, `title`, `description`, `status`, and i64
 fields `created_at`, `updated_at`. For example, before encoding:
 
 ```text
 status = 'OPEN'
 status = 'COMPLETED'
 status = 'OPEN' AND title.contains('计划')
+description.contains('Verified')
 created_at >= 1793808000 AND (status = 'OPEN' OR title.starts_with('Review'))
 id = '12'
 matches(title, '^Review')
@@ -374,3 +406,24 @@ do not deploy. After deployment, manually check todo creation, completion,
 reopening, deletion, and existing entries. For an application rollback, restore
 the previous Worker and matching assets while retaining the new table and its
 data; do not drop todos or restore an old database as a routine app rollback.
+
+
+### Todo description rollout
+
+Migration `0004_add_todo_description.sql` adds a non-null description column with
+an empty-string default. Existing todo IDs, titles, statuses, and timestamps are
+unchanged. Apply the migration before deploying the new server; release any Web
+client that writes descriptions only after that server is available. Old Web and
+mobile clients can continue creating title-only todos and patching title/status
+without clearing notes. Their existing response parsers ignore extra fields.
+
+`npm run deploy` builds and bundles the current Web checkout, so verify the
+frontend revision before releasing. For an application rollback, restore the
+matching server and Web versions while retaining the description column and its
+data. An older server rejects description writes; do not leave a new description
+editor connected to it. Do not drop the column or restore the whole database as
+part of an ordinary application rollback.
+
+Lists still return all todos with full descriptions. Response size and filtering
+cost grow with the number and length of notes; pagination and a separate detail
+endpoint are outside this change.

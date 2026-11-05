@@ -34,6 +34,7 @@ impl std::str::FromStr for TodoStatus {
 pub struct Todo {
     pub id: i64,
     pub title: String,
+    pub description: String,
     pub status: TodoStatus,
     pub created_at: i64,
     pub updated_at: i64,
@@ -41,10 +42,12 @@ pub struct Todo {
 
 pub struct CreateTodo {
     pub title: String,
+    pub description: String,
 }
 
 pub struct UpdateTodo {
     pub title: Option<String>,
+    pub description: Option<String>,
     pub status: Option<TodoStatus>,
 }
 
@@ -53,6 +56,16 @@ fn validate_title(title: &str) -> Result<(), Error> {
         return Err(Error::InvalidField {
             field: "title",
             message: "Must contain 1 to 500 Unicode scalar values.",
+        });
+    }
+    Ok(())
+}
+
+fn validate_description(description: &str) -> Result<(), Error> {
+    if description.chars().count() > 10_000 {
+        return Err(Error::InvalidField {
+            field: "description",
+            message: "Must contain at most 10000 Unicode scalar values.",
         });
     }
     Ok(())
@@ -77,6 +90,7 @@ impl<R: TodoRepository> TodoService<R> {
 
     pub async fn create(&self, input: CreateTodo, now: i64) -> Result<Todo, Error> {
         validate_title(&input.title)?;
+        validate_description(&input.description)?;
         validate_timestamp(now, "created_at")?;
         self.repository.create(input, now).await
     }
@@ -97,10 +111,13 @@ impl<R: TodoRepository> TodoService<R> {
         if let Some(title) = &input.title {
             validate_title(title)?;
         }
-        if input.title.is_none() && input.status.is_none() {
+        if let Some(description) = &input.description {
+            validate_description(description)?;
+        }
+        if input.title.is_none() && input.status.is_none() && input.description.is_none() {
             return Err(Error::InvalidField {
                 field: "body",
-                message: "Provide at least one of title or status.",
+                message: "Provide at least one of title, status, or description.",
             });
         }
         self.repository

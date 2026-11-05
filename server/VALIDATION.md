@@ -150,3 +150,87 @@ that a production migration has been applied.
 Todo and category migrations 0002/0003 were applied remotely after exporting D1 and temporarily pausing API access. The final Worker version is `47afe794-66d5-4ede-ac28-82a27fe39085`, serving application commit `11a77f7` with the integrated Web todo panel. No migrations remain pending.
 
 Compared all 48 historical entries against the export: IDs, titles and timestamps were unchanged. Live todo create/complete/reopen/delete, category reads, and legacy entry create/update succeeded; the legacy update retained its category. Temporary verification records were deleted. This supersedes the local-only rollout status above.
+
+## Todo descriptions — 2026-11-05 (plan 07)
+
+Implemented the server portion only. No automated tests or test files were added.
+Verification used manual HTTP requests, local D1, and the tracked example
+configuration. No remote migration or deployment was performed for migration
+0004; the production rollout recorded above covers only 0002/0003.
+
+### Build and source checks
+
+The following commands passed from `server/`:
+
+```sh
+cargo fmt --all -- --check
+cargo check --workspace --locked
+cargo clippy --workspace --locked -- -D warnings
+cargo clippy --workspace --locked --target wasm32-unknown-unknown -- -D warnings
+npm run build:local
+```
+
+The combined build passed frontend type checking, Vite compilation, release Wasm
+compilation, wasm-opt, and Wrangler's deployment dry run. The existing route
+generator circular-dependency warning remains. Existing, independently edited
+Web sources were included in that build; no Web/mobile source changes were made
+for this server implementation. `git diff --check` passed.
+
+### Local migration and persistence
+
+- Created an isolated legacy database at
+  `.wrangler/description-upgrade-20261105` using migrations 0001–0003, then inserted
+  historical todos 7 (OPEN, timestamps 100/120) and 9 (COMPLETED, 200/220).
+- Applied `0004_add_todo_description.sql` with `wrangler d1 execute --local
+  --file`. Both rows retained their IDs, titles, statuses, and timestamps and
+  gained `description: ""`. The next HTTP-created todo received ID 10.
+- Applied all four migrations to fresh storage at
+  `.wrangler/description-fresh-20261105` with `wrangler d1 migrations apply
+  --local`. Repeating that command reported no pending migrations.
+- Started the Worker on port 8797 with inspector port 9237 and the upgrade
+  database. After writes, stopped and restarted it with the same storage.
+  Full list responses before and after restart were byte-identical (`cmp`).
+- Local databases were retained for inspection. Wrangler used fallback
+  Request.cf metadata after a download timeout; local API requests succeeded.
+
+Both storage commands used
+`--config cloudflare-worker/wrangler.example.jsonc` and an explicit
+`--persist-to` path. No existing development database was migrated by this work.
+
+### Manual HTTP observations
+
+| Area | Observed result |
+| --- | --- |
+| Legacy create | A title-only POST returned 201 with an empty description and OPEN status |
+| Description lifecycle | Created and read descriptions, edited notes while OPEN and COMPLETED, cleared with an empty string, and reopened without losing content |
+| Partial updates | Title-only and status-only PATCH preserved notes; description-only PATCH preserved title, status, and created_at, including after restart |
+| Atomic update | Status plus description saved together; a request containing an invalid title changed neither status nor description |
+| Timestamps | An identical description submitted in a later second retained updated_at; a changed description advanced it while preserving created_at |
+| Unicode and plain text | Chinese, emoji, leading/trailing spaces, newlines, tabs, embedded NUL, and literal HTML survived storage and list retrieval |
+| Scalar limit | 10,000 scalars succeeded; 10,001 failed with a description field violation on POST and PATCH |
+| Large JSON | A 10,000-character Chinese/emoji note exceeded the old 16 KiB limit and succeeded; 10,000 escaped emoji plus a 500-emoji title also succeeded |
+| Body limit | A valid JSON body padded to exactly 131072 bytes succeeded; 131073 bytes failed. Oversized POST and PATCH returned the 131072-byte error |
+| Other APIs | Oversized entries and categories requests still returned the 16384-byte error |
+| Invalid inputs | Null, numeric, boolean and array descriptions, unknown fields, and empty PATCH were rejected; POST continued rejecting client-supplied status |
+| Filtering | A Base64-encoded `description.contains('Verified')` expression returned the matching completed todo with its full description |
+| Missing resource | Description PATCH to missing ID 99999 returned 404 TODO_NOT_FOUND |
+
+Source inspection of `web/src/api/todos.ts` and `mobile/src/api/todos.ts`
+confirmed that their existing response parsers ignore extra fields and their
+create/update requests omit description. The legacy-shaped requests above
+verified preservation on the new backend. This is not an end-to-end UI or
+mobile-device validation; description editing belongs to the separate Web plan.
+
+### List-size observation and rollout
+
+Added 100 synthetic todos with 1,000 Chinese characters each to the isolated
+upgrade database. With the other eight migration/boundary records (including
+three maximum-length notes), GET returned all 108 items: 422,908 bytes in one
+local curl observation of 0.008361 seconds. This is a local size/behavior check,
+not a production latency benchmark. Lists still load full descriptions and
+filter in memory; large datasets may need pagination or a separate detail API.
+
+Production release order remains migration 0004, new server, then a Web editor
+using the new contract. The server deployment command bundles the current Web
+checkout. Rollbacks must retain the new column/data and use matching server/Web
+versions, as documented in README.md. The local Worker was stopped after checks.
