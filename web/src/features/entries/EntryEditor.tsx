@@ -129,7 +129,7 @@ export function EntryEditor({ session, mutations, online, notify, onClose, onPre
     catch (error) { notify(error instanceof Error ? error.message : 'Could not delete this entry.') }
   }
   return <section className="editor" ref={panel} tabIndex={-1} role="region" aria-labelledby="editor-heading">
-    <header className="editor-heading"><div><h2 id="editor-heading">{original ? 'Edit entry' : 'New entry'}</h2></div><button className="icon-button" aria-label="Close editor" disabled={locked && operation?.status !== 'uncertain'} onClick={close}><X size={16} /></button></header>
+    <header className="panel-heading"><div><h2 id="editor-heading">{original ? 'Edit entry' : 'New entry'}</h2></div><button className="icon-button" aria-label="Close editor" disabled={locked && operation?.status !== 'uncertain'} onClick={close}><X size={16} /></button></header>
     <form className="entry-form" noValidate onSubmit={event => { event.preventDefault(); void form.handleSubmit() }}>
       <div className="entry-fields">
       <fieldset disabled={locked}>

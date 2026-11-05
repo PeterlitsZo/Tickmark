@@ -97,7 +97,7 @@ export function CalendarPage({ date }: { date?: string }) {
   }
   const heading = new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
   return <div className={styles.layout}>
-    <DateNavigator key={day.slice(0, 7)} day={day} zone={zone} onDate={onDate} onManageCategories={() => manageCategories()} />
+    <DateNavigator key={day.slice(0, 7)} day={day} zone={zone} onDate={onDate} />
     <main className="calendar-main" aria-label="Calendar">
       <header className="page-header">
         <div className="page-title"><h1 title={day}>{heading}</h1></div>
