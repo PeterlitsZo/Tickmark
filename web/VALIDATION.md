@@ -191,3 +191,11 @@ Verified in Chromium:
 - No browser runtime errors were captured. Build (including TypeScript), lint and whitespace checks passed. No automated tests or test dependencies were added.
 
 Actual screenshots are saved under `plans/20261105/02/`: `implemented-desktop.png`, `implemented-mobile.png`, and `implemented-mobile-editor.png`. They show isolated demonstration data. Native Safari, physical-device keyboards, and screen-reader speech remain unverified. This implementation has not been deployed.
+
+### Production deployment of integrated todos
+
+Deployed application commit `11a77f7` to `https://tickmark.peterlits.me` on 2026-11-05, Worker version `47afe794-66d5-4ede-ac28-82a27fe39085`. This supersedes the local-only status above. The release includes the previously committed todo and category APIs.
+
+Exported D1 before deployment, temporarily paused API access, applied migrations 0002 and 0003, and then published the final Worker and assets. No migrations remain pending. All 48 pre-existing time entries retained their IDs, titles, start times and end times compared with the backup. Todo create/complete/reopen/delete and legacy entry create/update succeeded; the entry update retained its category. Temporary verification records were deleted.
+
+Live Chromium checks confirmed the integrated Todos panel, no runtime errors, and no horizontal overflow at 390px. HTML and all four JS/CSS bundles matched local build artifacts byte-for-byte. The backup and deployment screenshot remain in the ignored local plan folder.

@@ -144,3 +144,9 @@ was stopped after verification.
 Production rollout still requires a coordinated migration and deployment with
 writes paused, as documented in README.md. Local verification does not establish
 that a production migration has been applied.
+
+## Production rollout (2026-11-05)
+
+Todo and category migrations 0002/0003 were applied remotely after exporting D1 and temporarily pausing API access. The final Worker version is `47afe794-66d5-4ede-ac28-82a27fe39085`, serving application commit `11a77f7` with the integrated Web todo panel. No migrations remain pending.
+
+Compared all 48 historical entries against the export: IDs, titles and timestamps were unchanged. Live todo create/complete/reopen/delete, category reads, and legacy entry create/update succeeded; the legacy update retained its category. Temporary verification records were deleted. This supersedes the local-only rollout status above.
