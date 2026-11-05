@@ -2,7 +2,7 @@ import { queryOptions, type QueryClient } from '@tanstack/react-query'
 import { entriesApi, ApiError, type Entry, type EntryList, type EntryInput, type TimeRange } from '../../api/entries'
 import { intersects } from '../../lib/time'
 export const entriesKey = ['entries'] as const
-export const sameInput = (a: EntryInput, b: EntryInput) => a.title === b.title && a.start_time === b.start_time && a.end_time === b.end_time
+export const sameInput = (a: EntryInput, b: EntryInput) => a.title === b.title && a.start_time === b.start_time && a.end_time === b.end_time && a.category_id === b.category_id
 export const entryOrder = (a: Entry, b: Entry) => a.start_time - b.start_time || a.id.length - b.id.length || a.id.localeCompare(b.id)
 export const rangeOptions = (range: TimeRange) => queryOptions({
   queryKey: [...entriesKey, range.from, range.to],

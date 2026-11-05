@@ -1,10 +1,13 @@
+import type { Category } from '../../api/categories'
+import { categoryTone } from '../categories/categoryStyles'
 import { memo, useEffect, useMemo, useRef, useState, type RefObject, type PointerEvent as ReactPointerEvent } from 'react'
 import type { Entry, EntryInput, TimeRange } from '../../api/entries'
 import { clockTime, entryTime, offsetLabel, duration } from '../../lib/time'
 import { clamp, dragTimes, layoutEntries, PIXELS_PER_MINUTE, SNAP, TOP_PADDING, type DragMode } from './timelineGeometry'
 
 type Gesture = { id: number; mode: DragMode; entry?: Entry; startY: number; clientY: number; startTime: number; startScroll: number; origin: EntryInput; preview: EntryInput; active: boolean; timer?: ReturnType<typeof setTimeout>; pointerType: string; startX: number }
-export function Timeline({ day, range, zone, entries, lockedIds, selectedId, draft, online, loading, onCreate, onOpen, onReplace, beforeDrag }: {
+export function Timeline({ day, range, zone, entries, lockedIds, selectedId, draft, online, loading, onCreate, onOpen, onReplace, beforeDrag, categories, categoriesLoading }: {
+  categories: Map<string, Category>; categoriesLoading: boolean;
   day: string; range: TimeRange; zone: string; entries: Entry[]; lockedIds: Set<string>; selectedId?: string; draft: EntryInput | null; online: boolean; loading: boolean;
   onCreate: (input: EntryInput) => void; onOpen: (entry: Entry) => void;
   onReplace: (entry: Entry, target: EntryInput) => void; beforeDrag: () => boolean;
@@ -28,7 +31,7 @@ export function Timeline({ day, range, zone, entries, lockedIds, selectedId, dra
     for (let t = range.from; t < range.to; t += 3600) result.push({ t, label: clockTime(t, zone) })
     return result.map(tick => ({ ...tick, repeated: result.filter(other => other.label === tick.label).length > 1 }))
   }, [range.from, range.to, zone])
-  const display = preview?.entry ? entries.map(e => e.id === preview.entry!.id ? { ...preview.input, id: e.id } : e) : entries
+  const display = preview?.entry ? entries.map(e => e.id === preview.entry!.id ? { ...e, ...preview.input, category_id: preview.input.category_id ?? e.category_id } : e) : entries
   const selection = preview ? (preview.entry ? null : preview.input) : draft
   const selectionStart = selection ? Math.max(selection.start_time, range.from) : 0
   const selectionEnd = selection ? Math.min(selection.end_time, range.to) : 0
@@ -159,8 +162,8 @@ export function Timeline({ day, range, zone, entries, lockedIds, selectedId, dra
         {ticks.map(tick => <div className="hour-row" key={tick.t} style={{ top: TOP_PADDING + (tick.t - range.from) / 60 * PIXELS_PER_MINUTE }}><div className="hour-label">{tick.label}{tick.repeated && <small>{offsetLabel(tick.t, zone)}</small>}</div><div className="hour-rule" /></div>)}
         <div className="hour-row" style={{ top: height + TOP_PADDING }}><div className="hour-label">00:00</div><div className="hour-rule" /></div>
         <div className="timeline-track" style={{ top: TOP_PADDING, height }} onPointerDown={event => down(event, 'create')}>
-          {blocks.map(({ entry, top, height: blockHeight, column, columns }) => <EntryBlock key={entry.id} entry={entry} top={top} height={blockHeight} column={column} columns={columns} selected={entry.id === selectedId} locked={lockedIds.has(entry.id)} from={range.from} to={range.to} zone={zone} actions={blockActions} />)}
-          {selection && selectionEnd > selectionStart && <div className={`selection-preview ${(selectionEnd - selectionStart) / 60 * PIXELS_PER_MINUTE < 60 ? 'block-small' : ''} ${(selectionEnd - selectionStart) / 60 * PIXELS_PER_MINUTE < 39 ? 'block-tiny' : ''} ${(selectionEnd - selectionStart) / 60 * PIXELS_PER_MINUTE < 14 ? 'block-sliver' : ''} ${!preview ? 'draft-preview' : ''}`} role="status" aria-label={`Unsaved entry, ${entryTime(selection, zone)}`} style={{ top: (selectionStart - range.from) / 60 * PIXELS_PER_MINUTE, height: (selectionEnd - selectionStart) / 60 * PIXELS_PER_MINUTE }}><div className="block-content"><strong>{selection.title || 'New entry'}</strong><span>{entryTime(selection, zone)}</span></div></div>}
+          {blocks.map(({ entry, top, height: blockHeight, column, columns }) => <EntryBlock key={entry.id} entry={entry} category={categories.get(entry.category_id)} categoriesLoading={categoriesLoading} top={top} height={blockHeight} column={column} columns={columns} selected={entry.id === selectedId} locked={lockedIds.has(entry.id)} from={range.from} to={range.to} zone={zone} actions={blockActions} />)}
+          {selection && selectionEnd > selectionStart && <div className={`selection-preview ${(selectionEnd - selectionStart) / 60 * PIXELS_PER_MINUTE < 60 ? 'block-small' : ''} ${(selectionEnd - selectionStart) / 60 * PIXELS_PER_MINUTE < 39 ? 'block-tiny' : ''} ${(selectionEnd - selectionStart) / 60 * PIXELS_PER_MINUTE < 14 ? 'block-sliver' : ''} ${!preview ? 'draft-preview' : ''}`} data-category-color={categoryTone(categories.get(selection.category_id ?? '')?.color)} role="status" aria-label={`Unsaved entry, ${entryTime(selection, zone)}`} style={{ top: (selectionStart - range.from) / 60 * PIXELS_PER_MINUTE, height: (selectionEnd - selectionStart) / 60 * PIXELS_PER_MINUTE }}><div className="block-content"><BlockHeading title={selection.title || 'New entry'} categoryName={selection.category_id ? categories.get(selection.category_id)?.name ?? 'Category unavailable' : undefined} /><span>{entryTime(selection, zone)}</span></div></div>}
           {now >= range.from && now < range.to && <div className="now-line" style={{ top: (now - range.from) / 60 * PIXELS_PER_MINUTE }}><span /></div>}
         </div>
       </div>
@@ -169,21 +172,27 @@ export function Timeline({ day, range, zone, entries, lockedIds, selectedId, dra
 }
 
 
+function BlockHeading({ title, categoryName }: { title: string; categoryName?: string }) {
+  return <strong className="block-heading">{categoryName && <small className="category-badge">{categoryName}</small>}<span className="entry-title">{title}</span></strong>
+}
+
 type BlockActions = {
   down: (event: ReactPointerEvent, mode: DragMode, entry?: Entry) => void
   open: (entry: Entry) => void
   suppressClick: RefObject<boolean>
 }
 // Only blocks whose geometry or data changed need to rerender during a drag.
-const EntryBlock = memo(function EntryBlock({ entry, top, height, column, columns, selected, locked, from, to, zone, actions }: {
+const EntryBlock = memo(function EntryBlock({ entry, top, height, column, columns, selected, locked, from, to, zone, actions, category, categoriesLoading }: {
+  category?: Category; categoriesLoading: boolean;
   entry: Entry; top: number; height: number; column: number; columns: number;
   selected: boolean; locked: boolean; from: number; to: number; zone: string;
   actions: RefObject<BlockActions>;
 }) {
+  const categoryName = category?.name ?? (categoriesLoading ? 'Loading category' : 'Category unavailable')
   const time = entryTime(entry, zone)
-  return <div className={`time-block ${height < 60 ? 'block-small' : ''} ${height < 39 ? 'block-tiny' : ''} ${height > 0 && height < 14 ? 'block-sliver' : ''} ${selected ? 'is-selected' : ''} ${locked ? 'is-pending' : ''} ${entry.start_time === entry.end_time ? 'is-point' : ''}`} onPointerDown={event => event.stopPropagation()} style={{ top, height, left: `calc(${column / columns * 100}% + 3px)`, width: `calc(${100 / columns}% - 8px)` }}>
-    <button className="block-content" disabled={locked} onPointerDown={event => actions.current.down(event, 'move', entry)} onClick={event => { if (event.detail === 0 && !actions.current.suppressClick.current) actions.current.open(entry) }} title={`${entry.title} · ${time}`} aria-label={`${entry.title}, ${time}, ${duration(entry.end_time - entry.start_time)}`}>
-      <strong>{entry.title}</strong><span>{time}</span>{locked && <small>Awaiting confirmation</small>}
+  return <div data-category-color={categoryTone(category?.color)} className={`time-block ${height < 60 ? 'block-small' : ''} ${height < 39 ? 'block-tiny' : ''} ${height > 0 && height < 14 ? 'block-sliver' : ''} ${selected ? 'is-selected' : ''} ${locked ? 'is-pending' : ''} ${entry.start_time === entry.end_time ? 'is-point' : ''}`} onPointerDown={event => event.stopPropagation()} style={{ top, height, left: `calc(${column / columns * 100}% + 3px)`, width: `calc(${100 / columns}% - 8px)` }}>
+    <button className="block-content" disabled={locked} onPointerDown={event => actions.current.down(event, 'move', entry)} onClick={event => { if (event.detail === 0 && !actions.current.suppressClick.current) actions.current.open(entry) }} title={`${entry.title} · ${time} · ${categoryName}`} aria-label={`${entry.title}, ${time}, ${duration(entry.end_time - entry.start_time)}, ${categoryName}`}>
+      <BlockHeading title={entry.title} categoryName={categoryName} /><span>{time}</span>{locked && <small>Awaiting confirmation</small>}
     </button>
     {!locked && height > 0 && entry.start_time >= from && <button className="resize-handle resize-start" aria-label={`Adjust start of ${entry.title}`} onPointerDown={event => actions.current.down(event, 'start', entry)} onClick={event => { if (event.detail === 0) actions.current.open(entry) }} />}
     {!locked && height > 0 && entry.end_time <= to && <button className="resize-handle resize-end" aria-label={`Adjust end of ${entry.title}`} onPointerDown={event => actions.current.down(event, 'end', entry)} onClick={event => { if (event.detail === 0) actions.current.open(entry) }} />}

@@ -1,8 +1,8 @@
-import { ChevronLeft, ChevronRight, Globe2, CalendarDays } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Globe2, CalendarDays, Tags } from 'lucide-react'
 import { useState } from 'react'
 import { shiftDay, today, validDay } from '../lib/time'
 
-export function DateNavigator({ day, zone, onDate, inert }: { inert?: boolean; day: string; zone: string; onDate: (day: string) => void }) {
+export function DateNavigator({ day, zone, onDate, inert, onManageCategories }: { onManageCategories: () => void; inert?: boolean; day: string; zone: string; onDate: (day: string) => void }) {
   const [month, setMonth] = useState(day.slice(0, 7))
   const first = new Date(`${month}-01T12:00:00Z`)
   const start = first.getUTCDay()
@@ -28,6 +28,7 @@ export function DateNavigator({ day, zone, onDate, inert }: { inert?: boolean; d
         })}
       </div>
     </div>
+    <button className="secondary category-nav" onClick={onManageCategories}><Tags size={16} />Manage categories</button>
     <div className="sidebar-footer"><Globe2 size={16} /><div>{zone}<small>Times in your local time zone</small></div></div>
   </aside>
 }

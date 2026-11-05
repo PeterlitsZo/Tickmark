@@ -49,7 +49,7 @@ npm --prefix server run build:local
 
 `build:local` builds the frontend, compiles Rust to Wasm, and runs a Wrangler deployment dry run using the example configuration. It requires no remote database or deployment.
 
-For the configured production target, `npm --prefix server run build` uses `server/cloudflare-worker/wrangler.jsonc`. `npm --prefix server run deploy` builds the frontend and publishes it together with the Worker. Follow the server README to configure the target first. No new schema migration is required by the web client.
+For the configured production target, `npm --prefix server run build` uses `server/cloudflare-worker/wrangler.jsonc`. `npm --prefix server run deploy` builds the frontend and publishes it together with the Worker. Follow the server README to configure the target first. The category UI requires the existing server category API and migration `0003`; apply pending server migrations before serving this client. This Web change adds no further migration.
 
 Static assets are uploaded with the Worker. Existing assets are served by the platform; `/api` and `/api/*` always execute the Rust handler. The Rust handler serves `index.html` through the `ASSETS` binding for page navigation, while missing scripts return 404. HTML is revalidated, hashed assets are immutable, and API responses use `no-store`. Roll back the entire Worker deployment to keep HTML, chunks and Wasm aligned.
 
@@ -59,7 +59,7 @@ Desktop keeps Todos in the right column. Selecting or creating a time block open
 
 Below 760 CSS pixels, the same workspace sits below the timeline. Todos can be collapsed to give the calendar more space. Opening entry details expands the bottom workspace while keeping the calendar and todos available; there is no modal or tab switch. The selected block is kept in view when the timeline height changes. Drafts survive resizing and collapsing the panel.
 
-The time scale is 96px per hour. A gray draft stays visible during creation and follows edits to its time range. Global notices appear over the calendar, away from editor actions. Field validation stays next to its input. The header has Today, previous/next day, refresh and add controls.
+The time scale is 96px per hour. A draft stays visible during creation and follows edits to its time range and category. Global notices appear over the calendar, away from editor actions. Field validation stays next to its input. The header has Today, previous/next day, refresh and add controls, plus a category-management shortcut when the sidebar is hidden.
 
 The screenshots in `docs/refinement/` document the earlier calendar layout; see `VALIDATION.md` for the current integrated workspace verification.
 
@@ -102,3 +102,15 @@ Failed writes retain the draft and never retry automatically. If a response is u
 - `public/icon.svg`: the existing mobile Timeline mark.
 
 No automated tests or test dependencies were added, following AGENTS.md. See `VALIDATION.md` for actual verification and remaining device limitations.
+
+## Entry categories
+
+Manage categories from the desktop sidebar, compact calendar header, or entry category field. Each category has an editable name and one of RED, ORANGE, YELLOW, GREEN, BLUE, PURPLE, PINK, GRAY. The frontend maps these semantic enum values to readable colors; the API never receives CSS colors. Names use server-compatible whitespace trimming and a 1–100 Unicode scalar limit. Duplicate names are allowed and distinguished with IDs in options and management rows.
+
+New entries prefer the category of the last successfully created entry, stored in this browser’s localStorage, and normally send it explicitly. If no remembered category exists in the loaded list, they select the lowest numeric category ID. Cancelled or failed drafts and edits to existing entries do not change this preference. Confirming an existing match after an uncertain create also remembers its category. Storage failures fall back safely without blocking saves. If a successful category read returns an empty list, saving an entry omits the ID so the server atomically creates `Default` / `GRAY`. Loading or failed reads do not count as an empty list. Editing and dragging preserve the selected category; missing categories require an explicit replacement while retaining the draft.
+
+Time blocks show the category badge immediately before the title. All durations use the same badge dimensions, with title ellipsis and a container-relative cap for long category names. Very short fragments retain full accessible labels. Category renames and color changes update the shared cache, so loaded dates use the new mapping without rewriting entries. Unknown future colors render neutrally and remain unchanged by name-only edits.
+
+Deletion requires confirmation and is refused when any time entry references the category, including entries on other dates. Uncertain category writes never retry automatically. Refresh/check before explicitly retrying; a same-name row cannot prove a create succeeded. Category drafts survive recoverable failures in the current page session. Explicitly stopping request tracking does not cancel an already-sent request.
+
+See `../plans/20261105/03/` for the original concepts, updated design decisions, and implementation screenshots; see `VALIDATION.md` for browser checks and limitations.

@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ApiError, entriesApi, type Entry, type EntryInput } from '../../api/entries'
+import { categoriesKey } from '../categories/categoriesQueries'
+import { rememberCreatedCategory } from '../categories/categoryPreference'
 import { commitEntry, readReplacement, sameInput } from './entriesQueries'
 
 export type Operation = {
@@ -42,7 +44,9 @@ export function useEntryMutations(notify: (message: string) => void) {
     publish(op.key, { ...op, status: 'saving', message: 'Saving…', match: undefined })
     try {
       const entry = await mutation.mutateAsync(op)
+      if (op.kind === 'create' && entry) rememberCreatedCategory(entry.category_id)
       await commitEntry(client, entry, op.original?.id)
+      void client.invalidateQueries({ queryKey: categoriesKey })
       publish(op.key)
       complete(op.key)
       return entry
@@ -52,6 +56,7 @@ export function useEntryMutations(notify: (message: string) => void) {
         return undefined
       }
       publish(op.key)
+      if (error instanceof ApiError && error.reason === 'CATEGORY_NOT_FOUND') void client.invalidateQueries({ queryKey: categoriesKey })
       if (error instanceof ApiError && error.reason === 'ENTRY_NOT_FOUND') await commitEntry(client, null, op.original?.id)
       throw error
     }
@@ -75,8 +80,10 @@ export function useEntryMutations(notify: (message: string) => void) {
         const target = op.input ?? op.original!
         const result = await entriesApi.list({ from: target.start_time, to: Math.max(target.start_time + 1, target.end_time) })
         if (op.kind === 'create') {
-          const match = result.items.find(e => sameInput(e, target))
-          publish(key, { ...op, status: 'uncertain', match, message: match ? 'A matching entry exists. It may be this save or an earlier identical entry. Use it to finish without creating another.' : 'No matching entry was found yet. A delayed save may still arrive. Check again before choosing to retry.' })
+          // Without an explicit category, the server's assigned category is unknown.
+          // Never confirm a default-category create using title and time alone.
+          const match = target.category_id ? result.items.find(e => sameInput(e, target)) : undefined
+          publish(key, { ...op, status: 'uncertain', match, message: !target.category_id ? 'The service assigned the category, so this save cannot be matched safely. Review the timeline before retrying; retrying may create a duplicate.' : match ? 'A matching entry exists. It may be this save or an earlier identical entry. Use it to finish without creating another.' : 'No matching entry was found yet. A delayed save may still arrive. Check again before choosing to retry.' })
         } else {
           const found = result.items.some(e => e.id === op.original!.id)
           publish(key, { ...op, status: 'uncertain', message: found ? 'The entry is still visible. Check again or explicitly retry deletion.' : 'The entry is no longer in its old range, but may have moved. Retry deletion to confirm that this ID is gone.' })
@@ -93,6 +100,7 @@ export function useEntryMutations(notify: (message: string) => void) {
   async function useMatch(key: string) {
     const op = current.current[key]
     if (!op?.match) return
+    if (op.kind === 'create') rememberCreatedCategory(op.match.category_id)
     await commitEntry(client, op.match)
     publish(key)
     complete(key)

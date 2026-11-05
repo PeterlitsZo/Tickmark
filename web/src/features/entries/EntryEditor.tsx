@@ -1,3 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
+import type { Category } from '../../api/categories'
+import { categoriesOptions } from '../categories/categoriesQueries'
+import { preferredCategoryId } from '../categories/categoryPreference'
+import { CategoryField } from '../categories/CategoryField'
 import { useForm, useStore } from '@tanstack/react-form'
 import { useBlocker } from '@tanstack/react-router'
 import { useEffect, useRef, useState, type RefObject } from 'react'
@@ -18,28 +23,34 @@ export function OperationStatus({ operation: op, mutations, online }: { operatio
     </div>}
   </div>
 }
-export function EntryEditor({ session, mutations, online, notify, onClose, onPreviewChange, closeGuard }: {
+export function EntryEditor({ session, mutations, online, notify, onClose, onPreviewChange, closeGuard, onManageCategories }: {
+  onManageCategories: (onCreated: (category: Category) => void) => void;
   notify: (message: string) => void; onPreviewChange: (input: EntryInput | null) => void; session: EditorSession; mutations: EntryMutations; online: boolean; onClose: () => void; closeGuard: RefObject<() => boolean>
 }) {
   const { input, original, zone } = session
+  const categories = useQuery(categoriesOptions())
+  const initializedCategory = useRef(!!input.category_id || !!original)
   const opKey = original?.id ?? 'create'
   const operation = mutations.pending[opKey]
   const initialCompleted = useRef(mutations.completed[opKey] ?? 0)
   const panel = useRef<HTMLElement>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const initial = { title: input.title, start: civilValue(input.start_time, zone), end: civilValue(input.end_time, zone), startOccurrence: input.start_time, endOccurrence: input.end_time }
+  const initial = { category_id: input.category_id ?? '', title: input.title, start: civilValue(input.start_time, zone), end: civilValue(input.end_time, zone), startOccurrence: input.start_time, endOccurrence: input.end_time }
   const form = useForm({
     defaultValues: initial,
     onSubmit: async ({ value }) => {
       const starts = occurrences(value.start, zone)
       const ends = occurrences(value.end, zone)
       const target = {
+        category_id: value.category_id || undefined,
         title: trimTitle(value.title),
         start_time: starts.includes(value.startOccurrence) ? value.startOccurrence : starts[0],
         end_time: ends.includes(value.endOccurrence) ? value.endOccurrence : ends[0],
       }
       const next = validateInput(target)
+      if (!categories.data || categories.isError) next.category_id = 'Load categories before saving.'
+      else if (value.category_id ? !categories.data.some(item => item.id === value.category_id) : !!original || categories.data.length > 0) next.category_id = 'Choose an available category.'
       if (!starts.length) next.start_time = 'This local time does not exist or is outside the supported range.'
       if (!ends.length) next.end_time = 'This local time does not exist or is outside the supported range.'
       setErrors(next)
@@ -49,14 +60,20 @@ export function EntryEditor({ session, mutations, online, notify, onClose, onPre
         if (result !== undefined) onClose()
       } catch (error) {
         notify(error instanceof Error ? error.message : 'Could not save this entry.')
-        if (error instanceof ApiError) setErrors(error.fields)
+        if (error instanceof ApiError) setErrors(error.reason === 'CATEGORY_NOT_FOUND' ? { ...error.fields, category_id: 'This category no longer exists. Choose another category.' } : error.fields)
       }
     },
   })
+  useEffect(() => {
+    if (initializedCategory.current || !categories.data || categories.isError) return
+    initializedCategory.current = true
+    form.setFieldValue('category_id', preferredCategoryId(categories.data) ?? '')
+  }, [categories.data, categories.isError, form])
   const values = useStore(form.store, state => state.values)
   const isSubmitting = useStore(form.store, state => state.isSubmitting)
   const dirty = useStore(form.store, state => state.isDirty)
   const locked = !!operation || isSubmitting
+  const categoryReady = !!categories.data && !categories.isError && (values.category_id ? categories.data.some(item => item.id === values.category_id) : !original && categories.data.length === 0)
   // Submission temporarily disables the fieldset. Focus only after it is enabled.
   useEffect(() => {
     if (locked) return
@@ -104,9 +121,9 @@ export function EntryEditor({ session, mutations, online, notify, onClose, onPre
   useEffect(() => {
     if (original) return
     onPreviewChange(Number.isFinite(start) && Number.isFinite(end) && end >= start
-      ? { title: values.title, start_time: start, end_time: end }
+      ? { title: values.title, start_time: start, end_time: end, category_id: values.category_id || undefined }
       : null)
-  }, [original, start, end, values.title, onPreviewChange])
+  }, [original, start, end, values.title, values.category_id, onPreviewChange])
   async function remove() {
     try { await mutations.submit('delete', undefined, original) }
     catch (error) { notify(error instanceof Error ? error.message : 'Could not delete this entry.') }
@@ -123,6 +140,7 @@ export function EntryEditor({ session, mutations, online, notify, onClose, onPre
           if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 || event.repeat || locked || !online) return
           event.currentTarget.form?.requestSubmit()
         }} aria-invalid={!!errors.title} aria-describedby={errors.title ? 'title-error' : undefined} /><span className="field-meta">{Array.from(values.title).length} / 500</span>{errors.title && <p className="field-error" id="title-error">{errors.title}</p>}</div>}</form.Field>
+        <form.Field name="category_id">{field => <CategoryField value={field.state.value} onChange={value => { field.handleChange(value); setErrors(previous => { const next = { ...previous }; delete next.category_id; return next }) }} onManage={() => onManageCategories(category => { field.handleChange(category.id); setErrors(previous => { const next = { ...previous }; delete next.category_id; return next }) })} error={errors.category_id} disabled={locked} online={online} allowDefault={!original} />}</form.Field>
         {(['start', 'end'] as const).map(name => {
           const candidates = name === 'start' ? starts : ends
           const selected = name === 'start' ? start : end
@@ -141,7 +159,7 @@ export function EntryEditor({ session, mutations, online, notify, onClose, onPre
       </div>
       <footer className="editor-actions">
         {original && <button type="button" className="delete-button" aria-label="Delete entry" disabled={locked || !online} onClick={() => setConfirmDelete(true)}><Trash2 size={17} /><span>Delete</span></button>}
-        <div className="row"><button type="button" className="secondary" disabled={locked} onClick={close}>Cancel</button><button type="submit" className="primary" disabled={locked || !online}>{operation?.status === 'uncertain' ? 'Awaiting confirmation' : locked ? 'Saving…' : original ? 'Save changes' : 'Save entry'}</button></div>
+        <div className="row"><button type="button" className="secondary" disabled={locked} onClick={close}>Cancel</button><button type="submit" className="primary" disabled={locked || !online || !categoryReady}>{operation?.status === 'uncertain' ? 'Awaiting confirmation' : locked ? 'Saving…' : original ? 'Save changes' : 'Save entry'}</button></div>
       </footer>
     </form>
   </section>

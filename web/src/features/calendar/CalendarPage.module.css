@@ -19,7 +19,7 @@
   .workspace[data-editing=true] { height: min(64dvh, 640px); }
   .workspace[data-editing=true] > section[data-expanded=true] { min-height: 150px; }
   .workspace[data-todos-expanded=false]:not([data-editing=true]) { height: auto; }
-  .details { flex-basis: 60%; min-height: 210px; }
+  .details { flex-basis: 66%; min-height: 240px; }
 }
 
 @media (max-width: 379px) {

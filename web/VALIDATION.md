@@ -199,3 +199,43 @@ Deployed application commit `11a77f7` to `https://tickmark.peterlits.me` on 2026
 Exported D1 before deployment, temporarily paused API access, applied migrations 0002 and 0003, and then published the final Worker and assets. No migrations remain pending. All 48 pre-existing time entries retained their IDs, titles, start times and end times compared with the backup. Todo create/complete/reopen/delete and legacy entry create/update succeeded; the entry update retained its category. Temporary verification records were deleted.
 
 Live Chromium checks confirmed the integrated Todos panel, no runtime errors, and no horizontal overflow at 390px. HTML and all four JS/CSS bundles matched local build artifacts byte-for-byte. The backup and deployment screenshot remain in the ignored local plan folder.
+
+## Entry categories — 2026-11-05
+
+Implemented on top of the completed integrated-Todos baseline (`08888f5`). These are manual browser interactions and request inspections, not a new automated test suite. No tests or dependencies were added.
+
+Environment: Chrome 156.0.8078.80 in an isolated Playwright browser, Asia/Shanghai time zone; Vite at `127.0.0.1:5175` proxying to local Worker `127.0.0.1:8794`. The example Wrangler configuration used a fresh local D1 at `server/.wrangler/web-categories-20261105`, with all three existing migrations applied. No production requests, deployment, or backend changes were made.
+
+Final checks passed: `npm --prefix web run lint`, `npm --prefix web run build` (including generated routes and TypeScript checking), and `git diff --check`. The existing non-fatal TanStack Router circular-dependency warning remains.
+
+| Area | Observed evidence |
+| --- | --- |
+| Empty database | The editor showed `Default (created on save)`. Its POST omitted category_id; the server returned an entry and created category ID 1 named Default with GRAY. No separate category POST was sent. |
+| Selection and writes | With multiple categories, a new entry selected ID 1. Explicit creation sent category_id 2. Changing only the category sent a PUT with unchanged title and times and the new ID. |
+| Management | Created Work/BLUE, changed it to Focus/PURPLE, created Study/GREEN from an entry draft, and deleted an unused category. The entry retained its title/times and selected the newly created category on return; focus returned to Manage categories. |
+| Rename propagation | Renaming Default to Work and changing its color immediately updated the existing block's accessible category name and mapping. |
+| Reference protection | Deleting a referenced category displayed CATEGORY_IN_USE inline. Repeating from November 6 also failed when the referenced entry was on November 5. |
+| Input boundaries | Whitespace-only and 101-character names were rejected inline; a 100-character name saved and could be deleted. Same-name categories remained distinct with ID suffixes. Name trimming uses the same Unicode White_Space rule as the server. |
+| Movement | Pointer drag sent category_id 2 with both times shifted by 1,800 seconds. Resizing the end sent category_id 2 and changed only the end by 900 seconds. Reloading and reopening retained selection. |
+| External deletion | Deleted an unused selected category through a separate API request, then saved the stale draft. The UI retained its title/time and missing ID, showed the error, refreshed options and disabled saving until explicit reselection. |
+| Read failure and offline | An injected category GET 500 disabled saving and retained the draft. Retry restored options. Offline disabled writes without losing inputs. |
+| Category response loss | Allowed POST/PATCH/DELETE to commit then discarded their responses. Create remained uncertain after refresh, without matching by name or automatically resending (one POST). PATCH and DELETE checks confirmed the saved state/absence. |
+| Category timeout | Delayed a committed POST response for 17 seconds, beyond the client's 15-second limit. The UI retained the uncertain operation and draft; exactly one POST was issued. Explicit stop-tracking and subsequent unused-category deletion worked. |
+| Entry matching | Aborted a create whose title/times matched an entry in another category. Check status offered no match. After an explicit retry committed in the selected category but lost its response, Check status offered the correct matching entry and explicit Use existing entry completed recovery. Entry deletion also worked. |
+| Future enum | Injected FUTURE_COLOR in a read. The editor displayed its neutral/unknown state. A name-only update sent only `{name: ...}`, preserving the unknown color rather than writing GRAY. |
+| Keyboard | ArrowRight moved the selected color from PURPLE to PINK. Escape closed management and returned focus to its trigger. Radio controls retain native keyboard behavior and a visible focus outline. |
+| Layout | Inspected 1440 × 900 desktop, 390 × 844 touch viewport, 320 × 568 touch viewport, and 720 × 450 effective CSS viewport (equivalent available layout space to 1440 × 900 at 200%). No document horizontal overflow. Management body and entry fields scroll while actions remain accessible; collapsing Todos makes more editing space available. |
+| Review fixes | Category badges now precede titles. Verified 10/15/20/30/35/40/55-minute blocks. A short Chinese title reproduced the reported squeeze; the final non-shrinking, container-capped badge shows 生活 completely. The same label measures 29.22 × 14 CSS px in both 15- and 30-minute blocks. |
+| Contrast | All eight category text/background token pairs have calculated WCAG contrast ratios from 5.94:1 to 7.55:1. Labels, selection outlines, checkmarks, and accessible names provide non-color cues. |
+| Todos regression | Created, completed, expanded completed items, reopened, collapsed and expanded Todos while entry/category UI remained usable. |
+| Runtime | No browser page errors were observed during these interactions. |
+
+Implementation screenshots are in `plans/20261105/03/`: `implemented-desktop-calendar.png`, `implemented-desktop-categories.png`, `implemented-mobile-entry.png`, `implemented-mobile-categories.png`, plus deletion protection, narrow/zoom-equivalent layouts and short-duration badge reproductions. Original `design-*.png` files remain design concepts. The user's review moved badges from below the time to before the title, with uniform dimensions across durations.
+
+Coverage limits: these category checks use desktop Chrome and emulated touch/viewport sizes, not physical phones or current Safari/Firefox. The 200% check uses equivalent CSS viewport dimensions rather than an OS/browser zoom control. No claim of new cross-browser or production verification is made. Pending operation state remains memory-only, with navigation/unload safeguards; an explicit retry can still duplicate a delayed create.
+
+### Remembered category follow-up
+
+New-entry defaults now read `tickmark.last-created-entry-category` from localStorage. Only successful creates (including explicit acceptance of a matching saved entry) update it; edits and cancelled drafts do not. The same selection helper handles both an already-cached list and the editor's first asynchronous category read. Missing IDs fall back to the first server-ordered category; an empty list retains the Default creation path. Both storage reads and writes tolerate browser security/quota errors.
+
+Using the same isolated Chrome/local Worker environment, created an entry in category 3 and observed stored value 3; reloaded and opened a new entry and observed selected value 3. Changed a draft to category 2 then cancelled; the next draft still selected 3. Replaced the preference with a nonexistent signed-64-bit ID and observed fallback to 1. Made the localStorage getter throw SecurityError: the new draft still selected 1 and saved successfully. Lint, TypeScript/build, and diff whitespace checks passed. No test files were added.
