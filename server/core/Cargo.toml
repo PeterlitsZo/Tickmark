@@ -3,3 +3,7 @@ name = "tickmark-core"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
+
+[dependencies]
+filter-expr = "=0.4.1"
+filter-expr-evaler = "=0.4.1"

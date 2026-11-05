@@ -1,5 +1,9 @@
-//! Platform-independent time-entry rules and persistence boundary.
+//! Platform-independent time-entry and todo rules and persistence boundaries.
+mod todo;
+mod todo_filter;
+
 use std::fmt;
+pub use todo::{CreateTodo, Todo, TodoRepository, TodoService, TodoStatus, UpdateTodo};
 
 pub const MAX_TIMESTAMP: i64 = 9_007_199_254_740_991;
 
@@ -32,6 +36,8 @@ pub enum Error {
     },
     InvalidTimeRange,
     NotFound,
+    TodoNotFound,
+    InvalidFilter(&'static str),
     Storage(String),
 }
 
@@ -41,6 +47,8 @@ impl fmt::Display for Error {
             Self::InvalidField { field, message } => write!(f, "{field}: {message}"),
             Self::InvalidTimeRange => f.write_str("Invalid time range"),
             Self::NotFound => f.write_str("Entry not found"),
+            Self::TodoNotFound => f.write_str("Todo not found"),
+            Self::InvalidFilter(message) => write!(f, "Invalid filter: {message}"),
             Self::Storage(message) => write!(f, "Storage failure: {message}"),
         }
     }

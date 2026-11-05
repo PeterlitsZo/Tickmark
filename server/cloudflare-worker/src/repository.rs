@@ -28,11 +28,11 @@ impl TryFrom<Row> for TimeEntry {
     }
 }
 
-fn storage(error: impl std::fmt::Display) -> Error {
+pub(crate) fn storage(error: impl std::fmt::Display) -> Error {
     Error::Storage(error.to_string())
 }
 
-fn check(result: D1Result) -> Result<D1Result, Error> {
+pub(crate) fn check(result: D1Result) -> Result<D1Result, Error> {
     if !result.success() {
         return Err(storage(
             result.error().unwrap_or_else(|| "D1 query failed".into()),

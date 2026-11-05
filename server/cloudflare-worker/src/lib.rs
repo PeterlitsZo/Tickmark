@@ -1,4 +1,6 @@
 mod repository;
+mod todo_api;
+mod todo_repository;
 
 use futures_util::StreamExt;
 use repository::D1Repository;
@@ -140,12 +142,29 @@ impl From<CoreError> for ApiError {
                 "ENTRY_NOT_FOUND",
                 "The requested entry does not exist.",
             ),
+            CoreError::TodoNotFound => Self::new(
+                404,
+                "NOT_FOUND",
+                "TODO_NOT_FOUND",
+                "The requested todo does not exist.",
+            ),
+            CoreError::InvalidFilter(message) => Self {
+                field: Some("filter"),
+                ..Self::new(400, "INVALID_ARGUMENT", "INVALID_FILTER", message)
+            },
             CoreError::Storage(message) => internal(message),
         }
     }
 }
 
 async fn input(req: &mut Request) -> Result<EntryInput, ApiError> {
+    json_input::<Input>(req, "Provide only title as a string, and start_time and end_time as integers; all are required.").await.map(Into::into)
+}
+
+async fn json_input<T: serde::de::DeserializeOwned>(
+    req: &mut Request,
+    fields_message: &'static str,
+) -> Result<T, ApiError> {
     let content_type = req
         .headers()
         .get("Content-Type")
@@ -180,11 +199,16 @@ async fn input(req: &mut Request) -> Result<EntryInput, ApiError> {
         }
         bytes.extend_from_slice(&chunk);
     }
-    serde_json::from_slice::<Input>(&bytes).map(Into::into).map_err(|error| {
+    serde_json::from_slice::<T>(&bytes).map_err(|error| {
         if error.is_data() {
-            ApiError::field("body", "Provide only title as a string, and start_time and end_time as integers; all are required.")
+            ApiError::field("body", fields_message)
         } else {
-            ApiError::new(400, "INVALID_ARGUMENT", "INVALID_JSON", "Provide a valid JSON object.")
+            ApiError::new(
+                400,
+                "INVALID_ARGUMENT",
+                "INVALID_JSON",
+                "Provide a valid JSON object.",
+            )
         }
     })
 }
@@ -233,6 +257,9 @@ fn range(req: &Request) -> Result<TimeRange, ApiError> {
 
 async fn handle(mut req: Request, env: Env) -> Result<Response, ApiError> {
     let path = req.path();
+    if path == todo_api::COLLECTION || path.starts_with("/api/v1/todos/") {
+        return todo_api::handle(req, env).await;
+    }
     let method = req.method();
     let id = if path == COLLECTION {
         if !matches!(method, Method::Get | Method::Post) {
