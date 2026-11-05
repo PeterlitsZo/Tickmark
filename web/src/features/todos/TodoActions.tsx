@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef } from 'react'
-import { Ellipsis, Pencil, Trash2 } from 'lucide-react'
+import { Ellipsis, Trash2 } from 'lucide-react'
 import styles from './TodoPanel.module.css'
 
-export function TodoActions({ title, disabled, onEdit, onDelete }: {
-  title: string; disabled: boolean; onEdit: () => void; onDelete: () => void
+export function TodoActions({ title, disabled, onDelete }: {
+  title: string; disabled: boolean; onDelete: () => void
 }) {
   const id = useId()
   const trigger = useRef<HTMLButtonElement>(null)
@@ -43,7 +43,6 @@ export function TodoActions({ title, disabled, onEdit, onDelete }: {
       menu.style.top = `${Math.max(8, Math.min(anchor.bottom + 4, window.innerHeight - menu.offsetHeight - 8))}px`
       menu.querySelector('button')?.focus({ preventScroll: true })
     }}>
-      <button disabled={disabled} onClick={() => choose(onEdit)}><Pencil size={15} />Edit title</button>
       <button disabled={disabled} onClick={() => choose(onDelete)}><Trash2 size={15} />Delete todo</button>
     </div>
   </div>

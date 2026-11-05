@@ -1,0 +1,12 @@
+Use case: ui-mockup. Revise the attached mobile Tickmark editor into a minimal direct-edit autosaving note surface. Same portrait 390x844 aspect, system sans-serif, white/off-white, muted green #425d48, charcoal titles and muted gray body text.
+Remove the old form completely: NO Save button, NO Cancel button, NO Title label, NO Notes label, NO Completed badge, NO helper paragraph, NO large bordered input or textarea, NO document/note icon, NO character count.
+Top 56px toolbar has a simple left chevron with "Todos" text at left (back navigation, not cancel), and small muted "Saved" at right. Fine bottom divider. No center title.
+Main content 20px side margin, 28px below toolbar. Show a small green checked square on the left, then the task title EXACTLY ONCE: "Review the release checklist", wrapping naturally into two lines if needed. Title is 20px medium dark text and directly editable, styled as plain text with no box. No strikethrough while editing. A subtle ellipsis action at top right of the task area, if room.
+Underneath aligned with the title text (not checkbox), notes are directly editable borderless plain text, 16px gray #66615c, with comfortable 1.6 line height, exact content:
+"Checked the release checklist.
+Migration and smoke checks passed.
+
+Follow-up
+Update the setup guide tomorrow."
+Show an insertion caret at the end. Leave large blank white/off-white writing space below. At most a faint underline when focused; no rectangular border. There is no separate static text copy plus editable copy. This is the only title and only note.
+Feel like a small calm document, not a form. No bottom buttons, no explanatory marketing text, no keyboard, no mobile hardware frame, no shadow cards. Typography alone differentiates title and notes. Output crisp high-resolution screenshot.

@@ -22,17 +22,17 @@ export function NotificationHost({ children }: { children: ReactNode }) {
   </NotificationTarget.Provider>
 }
 
-export function NotificationViewport({ children, notice, onDismiss }: {
-  children: ReactNode; notice: string; onDismiss: () => void
+export function NotificationViewport({ children, notice, onDismiss, action }: {
+  children: ReactNode; notice: string; onDismiss: () => void; action?: { label: string; onClick: () => void }
 }) {
   const target = useContext(NotificationTarget)
   return target ? createPortal(<>
     {children}
-    {notice && <TransientNotice key={notice} message={notice} onDismiss={onDismiss} />}
+    {notice && <TransientNotice key={notice} message={notice} onDismiss={onDismiss} action={action} />}
   </>, target) : null
 }
 
-function TransientNotice({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+function TransientNotice({ message, onDismiss, action }: { message: string; onDismiss: () => void; action?: { label: string; onClick: () => void } }) {
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const remaining = useRef(5000)
@@ -43,7 +43,7 @@ function TransientNotice({ message, onDismiss }: { message: string; onDismiss: (
     return () => { clearTimeout(timer); remaining.current -= Date.now() - started }
   }, [hovered, focused, onDismiss])
   return <div className="notification-card transient-notice" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onFocusCapture={() => setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false) }}>
-    <p role="status">{message}</p>
+    <p role="status">{message}{action && <><br /><button className="text-button" onClick={action.onClick}>{action.label}</button></>}</p>
     <button className="icon-button" aria-label="Dismiss notification" onClick={onDismiss}><X size={16} /></button>
   </div>
 }

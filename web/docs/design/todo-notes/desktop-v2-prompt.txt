@@ -1,0 +1,18 @@
+Use case: ui-mockup. Revise the attached Tickmark desktop UI proposal. Keep the entire left mini-calendar and center calendar exactly as in the reference. Same screenshot aspect ratio, same compact 368px right sidebar, system sans-serif, off-white #fafaf9, white, stone borders and dark green #425d48. No new design language.
+
+Replace the RIGHT TODO SIDEBAR with an exceptionally simple direct-edit text experience. This revision removes the rejected form entirely.
+Header stays "Todos  2 open", collapse and refresh. Quick add stays.
+Four tasks in original order:
+1 unchecked "Prepare next week’s priorities" 13px medium dark text. Below title, aligned exactly with title left edge, plain muted gray 12px text on TWO lines: "Outline the three most important" / "outcomes for next week." No note/document icons.
+2 checked green square checkbox, SINGLE title "Review the release checklist" at 13px medium dark text, trailing ellipsis. This title IS the editable field styled as plain text. It appears EXACTLY ONCE. Do not add a second title, input box or Title label. Because this task is being edited, suppress title strikethrough temporarily, checkbox already indicates completion.
+Under that single title and aligned with it, an open plain-text notes area with NO box, NO visible label, NO helper paragraph. Notes 12px regular #78716c with 1.6 line height, content exactly:
+"Checked the release checklist.
+Migration and smoke checks passed.
+
+Follow-up
+Update the setup guide tomorrow."
+Show a small insertion caret at the end of "tomorrow." to communicate direct editing. It is a borderless textarea blending with the sidebar, only a very fine bottom rule or subtle focus underline is permitted. About 28px of empty writing space after text, not a gigantic blank textbox.
+At lower right of notes show tiny muted "Saved" with NO icon. No Save button, Cancel button, character-limit text, Completed badge, Title label, Notes label, document icon, rich-text toolbar, or duplicated title anywhere.
+3 unchecked "Update the project documentation", plain title only.
+4 checked "Send the weekly summary" with subtle gray strikethrough title; below normal unstruck smaller gray text "Sent to the team. Next review on Friday."
+Rows separated by restrained vertical whitespace, no cards. Both title and notes look like text that you can click and edit immediately. Preserve roomy blank sidebar below the 4 tasks. Main calendar must remain the same. Output one high-resolution screenshot, no annotations or device frame.

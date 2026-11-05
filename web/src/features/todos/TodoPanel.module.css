@@ -1,18 +1,16 @@
 .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; flex: 1; }
 .panel[data-expanded=false] { flex: 0 0 auto; }
-.toggle { display: flex; flex: 1; align-items: center; min-width: 0; min-height: 40px; gap: 10px; text-align: left; padding: 0; }
+.toggle { display: flex; flex: 1; align-items: center; min-width: 0; min-height: 40px; width: 100%; gap: 10px; text-align: left; padding: 0; }
 .headingTitle { flex: 1; min-width: 0; }
-.toggle { width: 100%; }
 .toggle .headingText { font: inherit; color: var(--ink); }
 .toggle span { font-size: 12px; color: var(--muted); }
 .toggle svg { margin-left: auto; }
 .content { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .content[hidden] { display: none; }
 .scroll { min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 0 16px 16px; flex: 1; }
-.create { flex-shrink: 0; margin: 12px 16px 6px; }
 .content > :global(.field-error) { margin: 0 16px 10px; }
 .offline { font-size: 12px; color: var(--muted); padding-bottom: 12px; }
-.create { display: flex; padding: 6px; gap: 8px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.create { flex-shrink: 0; margin: 12px 16px 6px; display: flex; padding: 6px; gap: 8px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .create > button { width: 32px; height: 32px; min-width: 32px; min-height: 32px; flex: 0 0 32px; padding: 0; }
 .create:focus-within { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 1px var(--accent); }
 .create input:focus { outline: none; }
@@ -22,25 +20,23 @@
 .empty { padding: 20px 12px; text-align: center; color: var(--muted); }
 .empty svg { color: var(--accent); margin-bottom: 12px; }
 .list { list-style: none; margin: 0; padding: 0; }
-.item { padding: 4px 0; }
+.item { padding: 2px 0; }
 .itemRow { display: flex; align-items: flex-start; gap: 5px; }
 .check { min-width: 24px; min-height: 24px; display: grid; place-items: center; padding: 0; }
 .check span { border: 1px solid var(--line-strong); width: 14px; height: 14px; border-radius: 4px; display: grid; place-items: center; }
 .check span svg { width: 10px; height: 10px; display: block; }
 .check[aria-checked=true] span { color: white; background: var(--accent); border-color: var(--accent); }
 .check:hover:not(:disabled) span { border-color: var(--accent); }
-.title { flex: 1; min-width: 0; padding: 0; margin-block: 3px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.title { flex: 1; min-width: 0; padding: 0; margin-block: 3px; font-size: 12px; font-weight: 400; text-align: left; cursor: text; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 .completed { color: var(--muted); text-decoration: line-through; }
 .actions { display: flex; flex: 0 0 auto; color: var(--muted); padding-top: 0; }
 .actions > :global(.icon-button) { min-width: 24px; min-height: 24px; width: 24px; padding: 0; }
-.edit { flex: 1; min-width: 0; padding: 3px 0 8px; }
-.edit textarea { display: block; width: 100%; min-height: 72px; resize: vertical; border: 1px solid var(--line-strong); border-radius: 5px; padding: 8px; margin-bottom: 10px; color: var(--ink); background: var(--surface); }
 
 @media (hover: hover) and (pointer: fine) {
   .actions { opacity: 0; }
   .item:hover .actions, .item:focus-within .actions, .actions:has(:popover-open) { opacity: 1; }
 }
-@media (max-width: 759px) { .create input, .edit textarea { font-size: 16px; } }
+@media (max-width: 759px) { .create input { font-size: 16px; } }
 @media (pointer: coarse) { .create > button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; flex-basis: 44px; } .check span svg { width: 14px; height: 14px; } .check { min-width: 44px; min-height: 44px; } .title { margin-block: 13px; } .check span { width: 18px; height: 18px; } .actions > :global(.icon-button) { min-width: 44px; min-height: 44px; width: 44px; } }
 
 .actionMenu { position: fixed; inset: auto; margin: 0; width: 140px; max-height: calc(100dvh - 16px); overflow: auto; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); box-shadow: 0 6px 24px #29252414; }
@@ -52,3 +48,54 @@
 }
 
 @media (pointer: coarse) { .actionMenu button { min-height: 44px; } }
+
+
+.editor { padding-bottom: 0; }
+
+.noteBody { margin: 0 24px 0 29px; }
+.saveStatus, .sheetStatus { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.saveStatus { margin-top: 8px; }
+.feedback { font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.feedback:empty { display: none; }
+.feedback p, .feedback details { margin-top: 8px; }
+.feedback .count { display: block; color: var(--muted); }
+.recovery { margin-top: 8px; }
+.remoteNotes { white-space: pre-wrap; max-height: 180px; overflow: auto; }
+.sheet { position: fixed; inset: 0; margin: 0; width: 100%; max-width: none; max-height: none; padding: 0; border: 0; background: var(--surface); color: var(--ink); }
+.sheet[open] { display: flex; flex-direction: column; }
+.sheet::backdrop { background: #0005; }
+.sheetHeader { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-shrink: 0; padding: max(12px, env(safe-area-inset-top)) 20px 12px; border-bottom: 1px solid var(--line); }
+.sheetHeader > button { display: flex; align-items: center; min-height: 44px; }
+.sheetContent { padding: 20px 16px max(24px, env(safe-area-inset-bottom)); overflow: auto; overscroll-behavior: contain; }
+
+@media (pointer: coarse) {
+  .noteBody { margin-left: 49px; }
+}
+.editor:focus-within .actions { opacity: 1; }
+@media (max-width: 758px) { .sheet .actions { opacity: 1; } }
+
+
+/* The mirror and textarea share all text metrics, including trailing newlines. */
+.textField { position: relative; min-width: 0; font-family: inherit; font-weight: 400; white-space: pre-wrap; overflow-wrap: anywhere; }
+.textField[hidden] { display: none; }
+.textMeasure { display: block; visibility: hidden; min-height: 1lh; white-space: inherit; overflow-wrap: inherit; }
+.textField textarea { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 0; resize: none; overflow: hidden; background: transparent; color: inherit; font: inherit; line-height: inherit; letter-spacing: inherit; white-space: inherit; overflow-wrap: inherit; text-decoration: inherit; cursor: text; -webkit-user-drag: none; }
+.textField textarea:focus { outline: none; box-shadow: none; }
+.titleField { flex: 1; margin-block: 3px; color: var(--ink); font-size: 12px; line-height: 1.5; }
+.titleField.completed { color: var(--muted); }
+.notesField { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.notesField[data-expanded=false] .textMeasure { visibility: visible; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; pointer-events: none; }
+.notesField[data-expanded=false] textarea { color: transparent; caret-color: var(--muted); }
+.notesField[data-expanded=false] textarea::selection { color: HighlightText; background: Highlight; }
+.notesField textarea::placeholder { color: var(--muted); opacity: 1; }
+.sheet .titleField, .sheet .notesField { font-size: 16px; }
+@media (pointer: coarse) {
+  .titleField, .notesField { font-size: 16px; }
+  .titleField { margin-block: 13px; }
+}
+
+.textSurface { position: relative; }
+.previewBody { margin: 0 24px 0 29px; }
+.previewButton { display: block; width: 100%; padding: 0; text-align: left; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.previewText { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (pointer: coarse) { .previewBody { margin-left: 49px; } }

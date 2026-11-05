@@ -1,100 +1,127 @@
-# Todo Notes design proposal
+# Todo Notes design proposal, revision 2
 
-Status: visual proposal for plan 08, not an implemented or approved interface.
-Created on 2026-11-05 after inspecting the UI update in commit `795359c`.
-The server contract is implemented in `51af35b`.
+Status: revised visual proposal for plan 08; not implemented. Revision 1 was
+rejected because it duplicated the title, added unnecessary note icons, and
+required Save/Cancel. Revision 2 follows the user's direct-edit and autosave
+feedback. The server contract is implemented in `51af35b`.
 
 ## Current UI baseline
 
-The current app already has one unified todo list, stable ID ordering, a compact
-more-actions menu, and notifications outside document flow. This proposal builds
-on those behaviors. It does not restore the old completed-task section.
+The existing UI update (`795359c`) already provides one unified todo list,
+stable ordering, a more-actions menu, and floating notifications. Preserve those
+behaviors, the existing calendar, and the 368px desktop / 320px intermediate
+sidebar widths. Source screenshots use synthetic data intercepted in an isolated
+browser; no production data was changed.
 
-The reference screenshots were captured from the current local Vite app with
-synthetic API responses intercepted in an isolated browser. No production data
-was changed. Desktop reference: 1440 × 1000; narrow-screen reference: 390 × 844.
+- [Current desktop](current-desktop.png), captured at 1440 × 1000.
+- [Current narrow-screen layout](current-mobile.png), captured at 390 × 844.
 
-- [Current desktop](current-desktop.png)
-- [Current narrow-screen layout](current-mobile.png)
+## Direct editing
 
-## Proposed screens
+![Desktop revision 2](desktop-notes-v2.png)
 
-### Desktop: edit within the task list
+The title appears once and is itself editable. Notes appear directly below it,
+aligned with the title, in smaller, softer text. There are no document icons,
+duplicated titles, visible field labels, form cards, or Save/Cancel buttons.
+Use real inputs/textareas styled as text, with accessible names and visible
+keyboard focus. Avoid contenteditable and its extra formatting behavior.
 
-![Desktop Notes proposal](desktop-notes-proposal.png)
+Clicking the title edits that same title in place. Clicking the notes expands
+the preview into a borderless textarea, keeping the caret in the same content.
+Nonactive notes show at most two lines; active notes grow with the content and
+provide some trailing writing room. Empty notes occupy no row at rest; focusing
+a task reveals an understated “Add notes…” placeholder below its title. The
+more menu retains an edit action and can focus this otherwise empty field.
 
-Keep the calendar, navigation, sidebar width, quick-add input, and task order.
-Opening a task expands Title and Notes underneath its existing row. Only one
-editor is open at a time. A completed task remains checked while editing; its
-row title has a strike-through, but the input and note text do not.
+Use existing compact type as the starting point: approximately 13px medium dark
+titles and 12px muted notes on desktop. Maintain adequate contrast. Do not shrink
+editable text below 16px on touch devices; use weight and color to maintain the
+hierarchy there. Only resting completed titles use strike-through; active title
+editing removes it for readability. Notes never use strike-through.
 
-Notes has a multiline plain-text input with room for at least six lines. Save
-and Cancel are explicit. A muted dirty-state label appears only after a change;
-the length hint states the 10,000-character limit. In implementation, provide an
-actual scalar count near the limit and an associated error when exceeded.
+A small per-task save status occupies reserved space while editing: “Waiting to
+save…”, “Saving…”, “Saved”, or “Could not save · Retry”. Saved is shown only when
+all current valid edits have been acknowledged. Routine saves never show a toast,
+close the editor, move the caret, disable typing, or change the task's position.
+The images show the acknowledged state with the editor still focused.
 
-Tasks with notes show a small note icon and a maximum two-line preview. The
-preview and title can open the editor; the more menu retains an explicit edit
-entry for discoverability and keyboard access. Editing a preview focuses Notes;
-editing from the menu can focus Title. The preview never uses strike-through.
-Tasks with empty notes do not gain an empty preview row.
+## Narrow-screen editing
 
-### Narrow screens: give writing its own space
+![Mobile revision 2](mobile-notes-v2.png)
 
-![Mobile-web Notes proposal](mobile-notes-proposal.png)
+Below 759px, use a full-height editing sheet because the resting 38dvh todo
+panel is too short for long notes and a software keyboard. Its toolbar contains
+“‹ Todos” (back navigation) and the save status, with no Save/Cancel controls.
+The task title appears exactly once in the content, followed by editable notes.
+Use a real wrapping textarea for long titles, not a duplicated heading and input.
 
-Below the existing 759px breakpoint, opening the same editor presents a
-full-height sheet over the calendar. Cancel and Save stay in a persistent top
-toolbar; the form scrolls inside the remaining visible viewport. A status label
-shows that the task is already completed. There is no status mutation implied by
-saving a note.
+Returning to Todos flushes pending edits and restores the task's position and
+focus. The sheet manages dialog focus and background inertness, respects the
+visible viewport and safe areas, and preserves any underlying calendar entry
+draft. Keyboard-open behavior remains an implementation verification item.
+Back and Escape mean finish editing; they do not discard already autosaved text.
 
-This is a deliberate adjustment to the original plan: the current bottom Todos
-panel is only 38dvh tall, which leaves too little room for a long note and the
-software keyboard. Closing the sheet returns to the same task and list position.
-The existing calendar and list layout remains the resting state.
+## Autosave contract
 
-The sheet must manage focus as a dialog, make background controls inert, restore
-focus to its trigger, and protect a dirty draft on Cancel, Escape, or navigation.
-Use the visible viewport and safe-area insets so Save remains reachable with the
-keyboard open. The image shows the keyboard-closed layout; keyboard behavior
-requires browser/device verification during implementation.
+- Update the local visible draft immediately on every input. For each task,
+  schedule the first write five seconds after its first dirty input. Later input
+  updates the pending snapshot without resetting the deadline.
+- During continuous typing, start at most one normal autosave per five seconds
+  per task. Preserve a trailing write: the last edits must save even when typing
+  stops. This is throttling, not a five-second inactivity debounce.
+- Leaving the whole task editor, switching tasks, collapsing it, or returning
+  from the mobile sheet flushes valid pending changes early. These explicit
+  finish-editing flushes are exceptions to the normal five-second interval.
+  Moving focus between Title and Notes inside the same task does not flush.
+- Serialize writes per task; never overlap PATCH requests or cancel a write
+  just to send newer text. Keep only the latest pending draft. An old response
+  updates the acknowledged snapshot, never overwrites newer input, and never
+  marks newer unsent edits Saved. A slow response may delay the next write.
+- Send only fields changed from the last acknowledged value. Never include an
+  old status in a description PATCH. Completion/reopening remains immediate,
+  shares the per-task write queue, and preserves notes. Autosave does not close
+  the editor. Do not autosave the quick-add field, which would create partial
+  or duplicate tasks.
+- Do not submit a temporarily empty or oversized title, an oversized note, or an
+  active IME composition. Show the field error and retain the draft. Other valid
+  changed fields can save independently, but the task must not say Saved while
+  an invalid dirty field remains. Composition end reschedules any due write.
+- Ordinary save errors keep the draft and expose Retry. Stop periodic retry on
+  failures; reconnecting first reloads server state. A timeout or ambiguous
+  response requires comparison with the sent snapshot before another write.
+  A 404 preserves copyable text and never recreates the todo automatically.
+- Persist unacknowledged drafts locally by task ID, together with their last
+  acknowledged base, before scheduling a remote write. After reload, compare
+  with server data before offering recovery; never silently replay a stale
+  local draft over another device's edits. If local storage is unavailable,
+  keep the in-memory draft and explicitly report the limitation.
+- Internal navigation waits for a flush when needed. Refresh/tab close uses
+  dirty-state protection and local recovery; an asynchronous unload request
+  cannot guarantee server persistence. Background list refreshes must not
+  replace active drafts. Keep last-write-wins semantics explicit; updated_at
+  is not a version token.
+- Confirmed deletion cancels pending timers and clears the matching local draft;
+  queued responses must not restore a deleted row. Merely blurring onto Delete
+  must not cause a later autosave to recreate or overwrite it.
 
-## Completion and draft flow
+## Completion flow
 
-1. Checking a task saves COMPLETED immediately and preserves its position.
-2. After confirmed success, the existing floating notice offers Add note or
-   Edit note for that task. No editor opens automatically and no note is required.
-3. The action opens the editor and focuses Notes. The task's own edit entry
-   remains available after the transient notice closes.
-4. Save sends only changed title/description fields. It never resends an old
-   status value. Success closes the editor and updates the preview.
-5. Cancel discards only after confirmation if dirty. Failed or uncertain writes
-   retain the draft; a successful completion is not undone by a failed note save.
+Checking a task preserves its position and saves completion without requiring
+notes or opening an editor. A small Add note/Edit note action can remain in the
+existing completion notice; the permanent task edit entry works after that notice
+closes. Notes autosave after entry. A note-save failure does not undo completion.
 
-If the floating-notice component is extended with an action, preserve its
-existing pause-on-hover/focus behavior. The permanent task entry is the fallback
-for a dismissed notice. If a calendar entry editor is open, opening Todo Notes
-must preserve that draft; the narrow-screen sheet overlays it without unmounting
-it. On desktop the todo region and entry region retain independent scrolling.
+## Artifacts and generation
 
-## Visual and implementation boundaries
+Revision 2 uses the built-in `image_gen` tool to edit the previous proposal.
+Prompts: [desktop](desktop-v2-prompt.txt), [mobile](mobile-v2-prompt.txt).
+Images are visual references, not pixel-exact renders; actual CSS, focus behavior,
+contrast, and responsive wrapping govern implementation. No application source
+files were changed for this proposal.
 
-- Reuse existing tokens, system fonts, small radii, and muted green controls.
-- Keep the current 368px desktop / 320px intermediate sidebar widths.
-- Use plain text, preserve line breaks, and wrap long words. No rich-text toolbar,
-  comment thread, attachments, author avatars, or fabricated completion timestamp.
-- Keep quick creation title-only; users can add Notes afterward.
-- Preserve the partial-write, offline, and uncertain-save behavior in plan 08.
-- The images are AI-generated visual references, not pixel-exact browser
-  renders. Existing CSS tokens and accessibility requirements take precedence
-  over small image-generation differences in spacing or glyphs.
+The original `desktop-notes-proposal.png`, `mobile-notes-proposal.png`, and their
+prompts remain as superseded history; do not implement their form or save flow.
 
-## Generation
+## Latest interaction refinement
 
-Both proposals were generated with the built-in `image_gen` tool, using the
-current screenshots as references. The mobile prompt also used the desktop
-proposal to keep the fields consistent. Prompts are preserved in
-[desktop-prompt.txt](desktop-prompt.txt) and [mobile-prompt.txt](mobile-prompt.txt).
-The source screenshots and final selected images are stored in this directory.
-No application source files were changed for this proposal.
+The implemented refinement supersedes the earlier typography and save-status treatment: desktop titles use the original 12px/400 styling in both modes; routine save labels and the editor rail are removed. Empty notes show a single-line `Add notes...` placeholder only while editing, and grow/shrink with content without reserved height. Browsing still shows at most two lines. Mobile editing uses 16px text. Exceptional save and recovery feedback remains visible.

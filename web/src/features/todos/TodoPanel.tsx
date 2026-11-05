@@ -1,110 +1,126 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useBlocker } from '@tanstack/react-router'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronDown, ChevronRight, Plus, RefreshCw } from 'lucide-react'
 import { ApiError } from '../../api/client'
 import { todosApi, type Todo } from '../../api/todos'
 import { NotificationViewport } from '../../components/NotificationViewport'
 import { TodoActions } from './TodoActions'
+import { TodoEditor } from './TodoEditor'
+import { TodoNotesPreview } from './TodoTextField'
+import { TodoSheet } from './TodoSheet'
+import { DraftFeedback, draftStatus } from './TodoFeedback'
+import { useTodoInteraction } from './useTodoInteraction'
+import { needsAttention, todoDraftStore, todoKey, validTitle } from './todoDrafts'
 import styles from './TodoPanel.module.css'
 
-const todoKey = ['todos', 'ALL'] as const
-const validTitle = (title: string) => [...title].length > 0 && [...title].length <= 500
+const media = window.matchMedia('(max-width: 758px)')
+const subscribeMedia = (listener: () => void) => { media.addEventListener('change', listener); return () => media.removeEventListener('change', listener) }
 
 export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; onToggle: () => void; online: boolean }) {
   const client = useQueryClient()
+  const store = useMemo(() => todoDraftStore(client), [client])
+  useSyncExternalStore(store.subscribe, store.snapshot)
+  const panel = useRef<HTMLElement>(null)
+  const interaction = useTodoInteraction(panel, store)
+  const narrow = useSyncExternalStore(subscribeMedia, () => media.matches)
   const [title, setTitle] = useState('')
-  const [editing, setEditing] = useState<{ todo: Todo; title: string } | null>(null)
-  const [deleting, setDeleting] = useState<string | null>(null)
+  const [editing, setEditing] = useState<{ id: string; field: 'title' | 'description' } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const creating = useRef(false)
   const [error, setError] = useState('')
   const [uncertain, setUncertain] = useState(false)
   const [notice, setNotice] = useState('')
-  const dismissNotice = useCallback(() => setNotice(''), [])
-  const input = useRef<HTMLInputElement>(null)
-  const lock = useRef(false)
-  const focusNew = useRef(false)
+  const [completed, setCompleted] = useState<Todo | null>(null)
+  const dismissNotice = useCallback(() => { setNotice(''); setCompleted(null) }, [])
   const query = useQuery({ queryKey: todoKey, queryFn: ({ signal }) => todosApi.list('ALL', signal), retry: false, networkMode: 'always', staleTime: 15000 })
-  const mutation = useMutation({ mutationFn: (operation: () => Promise<Todo | void>) => operation(), retry: false, networkMode: 'always' })
-  const [busy, setBusy] = useState(false)
-  const locked = busy || uncertain || !online
-  useEffect(() => {
-    if (!locked && focusNew.current) { input.current?.focus(); focusNew.current = false }
-  }, [locked])
-  const dirty = title.length > 0 || !!(editing && editing.title !== editing.todo.title) || busy || uncertain
+  useEffect(() => { store.hydrate() }, [store])
+  useEffect(() => { if (query.data) store.ingest(query.data) }, [store, query.data])
+  useEffect(() => { store.setOnline(online) }, [store, online])
+  const dirty = [...store.drafts.values()].some(needsAttention)
   useBlocker({
-    shouldBlockFn: ({ next }) => next.fullPath !== '/calendar' && dirty && !window.confirm('Leave the calendar? Unsaved todos and pending save information will be lost.'),
-    enableBeforeUnload: dirty,
+    shouldBlockFn: async () => {
+      const saved = await store.flushAll()
+      return ((!saved || title.length > 0 || busy || uncertain) && !window.confirm('Leave with unsaved changes? Existing todo drafts are kept locally when browser storage is available. A new todo has not been saved.'))
+    },
+    enableBeforeUnload: dirty || title.length > 0 || busy || uncertain,
   })
-
-  async function save(operation: () => Promise<Todo | void>, done: () => void, message: string, removedId?: string) {
-    if (lock.current || uncertain || !online) return
-    lock.current = true
-    setBusy(true)
-    setError(''); setNotice('')
-    try {
-      const saved = await mutation.mutateAsync(operation)
-      await client.cancelQueries({ queryKey: ['todos'] })
-      // Commit the confirmed response even if the following refresh fails.
-      client.setQueryData<Todo[]>(todoKey, items => {
-        if (!items) return items
-        const next = items.filter(item => item.id !== (saved?.id ?? removedId))
-        if (saved) next.push(saved)
-        return next.sort((a, b) => b.id.length - a.id.length || b.id.localeCompare(a.id))
-      })
-      done()
-      setNotice(message)
-      await client.invalidateQueries({ queryKey: ['todos'] })
-    } catch (cause) {
-      setError(cause instanceof ApiError ? Object.values(cause.fields).join(' ') || cause.message : 'Could not save this change.')
-      if (cause instanceof ApiError && cause.uncertain) setUncertain(true)
-      if (cause instanceof ApiError && cause.status === 404) await client.invalidateQueries({ queryKey: ['todos'] })
-    } finally { lock.current = false; setBusy(false) }
+  async function open(todo: Todo, field: 'title' | 'description') {
+    store.ensure(todo)
+    if (!expanded) onToggle()
+    if (editing && editing.id !== todo.id) void store.flush(editing.id)
+    if (narrow) setEditing({ id: todo.id, field })
+    else interaction.focusTodo(todo.id, field)
   }
-  const cancelEdit = () => {
-    if (editing && editing.title !== editing.todo.title && !window.confirm('Discard changes to this title?')) return false
+  async function exit() {
+    const id = editing?.id
+    if (id) await store.flush(id)
     setEditing(null)
-    return true
+    if (id) requestAnimationFrame(() => panel.current?.querySelector<HTMLButtonElement>(`[data-todo-trigger="${id}"]`)?.focus({ preventScroll: true }))
   }
-  const openTodos = query.data?.filter(todo => todo.status === 'OPEN') ?? []
-  const todos = [...(query.data ?? [])].sort((a, b) => b.id.length - a.id.length || b.id.localeCompare(a.id))
-  return <section className={styles.panel} aria-label="Todos" data-expanded={expanded}>
+  async function status(todo: Todo) {
+    const next = todo.status === 'OPEN' ? 'COMPLETED' : 'OPEN'
+    if (await store.setStatus(todo, next)) {
+      setNotice(next === 'COMPLETED' ? 'Todo completed.' : 'Todo reopened.')
+      setCompleted(next === 'COMPLETED' ? todo : null)
+    }
+  }
+  async function remove(todo: Todo) {
+    if (!window.confirm('Delete this todo and its local draft? This cannot be undone.')) return
+    if (await store.remove(todo)) {
+      if (editing?.id === todo.id) setEditing(null)
+      setNotice('Todo deleted.'); setCompleted(null)
+    }
+  }
+  async function create() {
+    if (creating.current || uncertain || !online || !validTitle(title)) return
+    creating.current = true; setBusy(true); setError('')
+    try { await store.addConfirmed(await todosApi.create(title)); setTitle(''); setNotice('Todo added.'); setCompleted(null) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not add todo.'); setUncertain(!(cause instanceof ApiError) || cause.uncertain) }
+    finally { creating.current = false; setBusy(false) }
+  }
+  const items = new Map((query.data ?? []).map(todo => [todo.id, todo]))
+  for (const [id, draft] of store.drafts) if (needsAttention(draft) || draft.missing) items.set(id, draft.base)
+  const todos = [...items.values()].sort((a, b) => b.id.length - a.id.length || b.id.localeCompare(a.id))
+  const active = editing ? store.drafts.get(editing.id) : undefined
+
+  return <section ref={panel} onFocusCapture={interaction.onFocusCapture} onBlurCapture={interaction.onBlurCapture} className={styles.panel} aria-label="Todos" data-expanded={expanded}>
     <header className="panel-heading">
-      <h2 className={styles.headingTitle}><button className={styles.toggle} onClick={onToggle} aria-expanded={expanded} aria-controls="todo-content">
-        <span className={styles.headingText}>Todos</span><span>{query.data ? `${openTodos.length} open` : '…'}</span>
-        {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-      </button></h2>
-      <button className={`icon-button ${query.isFetching ? 'refreshing' : ''}`} aria-label="Refresh todos" disabled={query.isFetching || busy || !online} onClick={() => void query.refetch()}><RefreshCw size={16} /></button>
+      <h2 className={styles.headingTitle}><button className={styles.toggle} onClick={() => { void store.flushAll().then(onToggle) }} aria-expanded={expanded} aria-controls="todo-content"><span className={styles.headingText}>Todos</span><span>{todos.filter(todo => todo.status === 'OPEN').length} open{!expanded && dirty ? ' · Unsaved changes' : ''}</span>{expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</button></h2>
+      <button className={`icon-button ${query.isFetching ? 'refreshing' : ''}`} aria-label="Refresh todos" disabled={query.isFetching || !online} onClick={() => void query.refetch()}><RefreshCw size={16} /></button>
     </header>
     <div id="todo-content" className={styles.content} hidden={!expanded}>
-          <form className={styles.create} onSubmit={event => { event.preventDefault(); if (validTitle(title)) void save(() => todosApi.create(title), () => { setTitle(''); focusNew.current = true }, 'Todo added.') }}>
-            <label className="sr-only" htmlFor="new-todo">New todo</label>
-            <input ref={input} id="new-todo" onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 || event.repeat)) event.preventDefault() }} placeholder="Add a todo…" value={title} disabled={locked} onChange={event => setTitle(event.target.value)} aria-describedby={ [...title].length > 500 ? 'new-title-error' : undefined } />
-            <button className="primary" disabled={locked || !validTitle(title)}><Plus size={16} /><span className="sr-only">Add todo</span></button>
-          </form>
-          {[...title].length > 500 && <p id="new-title-error" className="field-error">Use 500 characters or fewer.</p>}
-          <div className={styles.scroll}>
-          {error && <div className={styles.error} role="alert"><p>{error}</p>{uncertain && <><p>Refresh and check the list before retrying. Retrying an add may create a duplicate.</p><button className="text-button" onClick={() => { if (window.confirm('Have you checked the list? Retrying may duplicate a todo or overwrite a newer change.')) { setUncertain(false); setError('') } }}>I checked the list; allow changes</button></>}</div>}
-          {query.isError && <div className={styles.error} role="alert"><p>{query.error.message}</p><button className="text-button" disabled={query.isFetching} onClick={() => void query.refetch()}>Try again</button></div>}
-          <p className="sr-only" role="status">{!busy && query.isFetching ? 'Refreshing todos…' : ''}</p>
-          {!online && <p className={styles.offline}>Offline. Reconnect to save; your draft stays here.</p>}
-          {query.isPending && !query.isError ? <p className={styles.empty}>Loading todos…</p> : query.data && todos.length === 0 ? <div className={styles.empty}><Check size={22} /><p>No todos yet. Add your first one above.</p></div> : null}
-          {renderList(todos, 'All todos')}
-          </div>
-    </div>
-    <NotificationViewport notice={notice} onDismiss={dismissNotice}>{busy && <p className="notification-card" role="status">Saving todo…</p>}</NotificationViewport>
-  </section>
-
-  function renderList(items: Todo[], label: string) {
-    return <ul className={styles.list} aria-label={label}>
-            {items.map(todo => <li key={todo.id} className={styles.item}>
+      <form className={styles.create} onSubmit={event => { event.preventDefault(); void create() }}>
+        <label className="sr-only" htmlFor="new-todo">New todo</label><input id="new-todo" placeholder="Add a todo…" value={title} disabled={busy || uncertain || !online} onChange={event => setTitle(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 || event.repeat)) event.preventDefault() }} />
+        <button className="primary" disabled={busy || uncertain || !online || !validTitle(title)}><Plus size={16} /><span className="sr-only">Add todo</span></button>
+      </form>
+      {[...title].length > 500 && <p className="field-error">Use 500 characters or fewer.</p>}
+      <div className={styles.scroll}>
+        {store.storageWarning && <p role="alert" className={styles.error}>{store.storageWarning}</p>}
+        {!online && <p className={styles.offline}>Offline. Your changes are kept here until you reconnect.</p>}
+        {error && <div role="alert" className={styles.error}><p>{error}</p>{uncertain && <><p>Refresh and check the list before retrying; adding again may create a duplicate.</p><button className="text-button" onClick={() => { if (window.confirm('Have you checked the list? Retrying may create a duplicate.')) { setUncertain(false); setError('') } }}>I checked the list</button></>}</div>}
+        {query.isError && <p role="alert" className={styles.error}>{query.error.message}</p>}
+        {query.isPending && !query.isError && <p className={styles.empty}>Loading todos…</p>}
+        {query.data && !todos.length && <p className={styles.empty}>No todos yet. Add your first one above.</p>}
+        <ul className={styles.list} aria-label="All todos">{todos.map(todo => {
+          const draft = store.ensure(todo)
+          const current = draft
+          const locked = !online || !!(draft && (draft.deleting || draft.checking || draft.recovery || draft.uncertain || draft.error || draft.missing || draft.pendingStatus))
+          return <li key={todo.id} className={styles.item}>
+            {!narrow ? <TodoEditor draft={draft} store={store} active={interaction.activeId === todo.id} onStatus={() => void status(draft.base)} onDelete={() => void remove(draft.base)} /> : <>
               <div className={styles.itemRow}>
-                <button className={styles.check} role="checkbox" aria-checked={todo.status === 'COMPLETED'} aria-label={`${todo.status === 'COMPLETED' ? 'Reopen' : 'Complete'} ${todo.title}`} disabled={locked || editing?.todo.id === todo.id} onClick={() => void save(() => todosApi.patch(todo.id, { status: todo.status === 'OPEN' ? 'COMPLETED' : 'OPEN' }), () => {}, todo.status === 'OPEN' ? 'Todo completed.' : 'Todo reopened.')}><span>{todo.status === 'COMPLETED' && <Check size={10} strokeWidth={2.5} />}</span></button>
-                {editing?.todo.id === todo.id ? <form className={styles.edit} onSubmit={event => { event.preventDefault(); if (validTitle(editing.title)) void save(() => todosApi.patch(todo.id, { title: editing.title }), () => setEditing(null), 'Title saved.') }}><label className="sr-only" htmlFor="edit-todo">Todo title</label><textarea autoFocus id="edit-todo" value={editing.title} disabled={locked} onChange={event => setEditing({ ...editing, title: event.target.value })} /><div className="row"><button className="primary" disabled={locked || !validTitle(editing.title)}>Save</button><button type="button" className="secondary" disabled={locked} onClick={cancelEdit}>Cancel</button></div>{[...editing.title].length > 500 && <p className="field-error">Use 500 characters or fewer.</p>}</form>
-                  : <span className={`${styles.title} ${todo.status === 'COMPLETED' ? styles.completed : ''}`}>{todo.title}</span>}
-                {editing?.todo.id !== todo.id && <TodoActions title={todo.title} disabled={locked} onEdit={() => { if (cancelEdit()) { setEditing({ todo, title: todo.title }); setDeleting(null) } }} onDelete={() => setDeleting(todo.id)} />}
+                <button className={styles.check} role="checkbox" aria-checked={todo.status === 'COMPLETED'} aria-label={`${todo.status === 'COMPLETED' ? 'Reopen' : 'Complete'} ${current.title}`} disabled={locked} onClick={() => void status(todo)}><span>{todo.status === 'COMPLETED' && <Check size={10} />}</span></button>
+                <button data-todo-trigger={todo.id} className={`${styles.title} ${todo.status === 'COMPLETED' ? styles.completed : ''}`} onClick={() => void open(todo, 'title')}>{current.title || 'Untitled draft'}</button>
+                <TodoActions title={current.title} disabled={!!draft?.deleting} onDelete={() => void remove(todo)} />
               </div>
-              {deleting === todo.id && <div className="delete-confirm"><strong>Delete this todo?</strong><p>This cannot be undone.</p><div className="row"><button className="danger-button" disabled={locked} onClick={() => void save(() => todosApi.remove(todo.id), () => setDeleting(null), 'Todo deleted.', todo.id)}>Delete todo</button><button className="secondary" disabled={locked} onClick={() => setDeleting(null)}>Keep todo</button></div></div>}
-            </li>)}
-    </ul>
-  }
+              <TodoNotesPreview value={current.description} onOpen={() => void open(todo, 'description')} />
+              {draft && draftStatus(draft, online) && <div className={styles.noteBody}><p className={styles.saveStatus} role="status">{draftStatus(draft, online)}</p><DraftFeedback draft={draft} store={store} /></div>}
+            </>}
+          </li>
+        })}</ul>
+      </div>
+    </div>
+    {narrow && active && editing && <TodoSheet key={editing.id} draft={active} store={store} initialField={editing.field} onStatus={() => void status(active.base)} onDelete={() => void remove(active.base)} onClose={() => void exit()} />}
+    <NotificationViewport notice={notice} onDismiss={dismissNotice} action={completed ? { label: completed.description ? 'Edit note' : 'Add note', onClick: () => { void open(store.drafts.get(completed.id)?.base ?? completed, 'description'); dismissNotice() } } : undefined}>{busy && <p className="notification-card" role="status">Adding todo…</p>}</NotificationViewport>
+  </section>
 }

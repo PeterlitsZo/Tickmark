@@ -239,3 +239,70 @@ Coverage limits: these category checks use desktop Chrome and emulated touch/vie
 New-entry defaults now read `tickmark.last-created-entry-category` from localStorage. Only successful creates (including explicit acceptance of a matching saved entry) update it; edits and cancelled drafts do not. The same selection helper handles both an already-cached list and the editor's first asynchronous category read. Missing IDs fall back to the first server-ordered category; an empty list retains the Default creation path. Both storage reads and writes tolerate browser security/quota errors.
 
 Using the same isolated Chrome/local Worker environment, created an entry in category 3 and observed stored value 3; reloaded and opened a new entry and observed selected value 3. Changed a draft to category 2 then cancelled; the next draft still selected 3. Replaced the preference with a nonexistent signed-64-bit ID and observed fallback to 1. Made the localStorage getter throw SecurityError: the new draft still selected 1 and saved successfully. Lint, TypeScript/build, and diff whitespace checks passed. No test files were added.
+
+## Todo notes and autosave — 2026-11-05
+
+Implemented the revised inline design against the current unified todo list. Ran `npm --prefix web run lint`, `npm --prefix web run build`, and `git diff --check` successfully. The existing route-generator circular-dependency warning remains non-fatal. No test files or dependencies were added.
+
+Manual Chromium browser sessions used Vite at localhost:5173 with all `/api/v1/**` requests intercepted by an in-memory fixture. No production writes or deployment were performed. These checks validate browser behavior against the new API contract; they do not replace a deployed API integration check after migration 0004.
+
+- Continuous input for 21 seconds produced five description-only PATCHes, spaced 5,070 / 5,063 / 5,055 / 5,052 ms apart. The trailing value was saved and the textarea retained it. No page errors occurred.
+- A 6.5-second response delay preserved newer input and serialized the next write. Moving focus from title to notes sent no early PATCH. Leaving the task flushed changes.
+- HTTP 500 retained the draft and sent no timed retry. Checking the server exposed explicit recovery; choosing the local draft saved it. Offline edits persisted in localStorage; reconnect read and saved the draft. Reload retained text and exposed recovery choices.
+- An empty title did not prevent a valid notes-only PATCH. A 500-emoji title and 10,000-emoji note saved; 10,001 note characters stayed local. Clearing notes sent an empty description. Completion/reopening preserved notes.
+- Synthetic composition events held unfinished Chinese input locally and resumed saving after composition ended. This is event-level verification, not a physical operating-system IME check.
+- A 404 retained copyable notes and exposed Dismiss draft. Denied localStorage writes showed the recovery warning. Deletion during a delayed write executed PATCH start → PATCH end → DELETE, leaving zero rows.
+- Inspected desktop and 390px touch screenshots. The title appears once, with muted notes and no document icon or Save/Cancel form. The native mobile dialog makes background controls inert; closing it restored focus to the task. At 390px and 768px there was no horizontal overflow. A Chromium 200% CSS-zoom check also showed no horizontal overflow (not a native browser-zoom or physical-device check).
+
+Screenshots: [desktop](docs/validation/todo-notes/desktop.png), [mobile](docs/validation/todo-notes/mobile.png).
+
+Remaining platform coverage: physical iOS/Android keyboards, installed Safari, assistive-technology announcements, and production migration/deployment integration were not exercised in this pass. Cross-device same-field writes still use server last-write-wins semantics; recovery is not transactional conflict resolution.
+
+### Cloudflare deployment — 2026-11-05
+
+Applied remote D1 migration `0004_add_todo_description.sql`, then deployed the current workspace frontend and Rust Worker together to https://tickmark-server.peterlitszo.workers.dev. Worker version: `5ab16272-2cf9-44ec-84ff-4c5b58cf0ea1`. The production build and Wrangler dry run passed before deployment.
+
+A Chromium session opened the deployed calendar (HTTP 200), edited the notes of a dedicated temporary todo, and confirmed the five-second autosave through a fresh API read. No page errors were reported. The verification todo was deleted afterward (HTTP 204). This closes the production migration/API integration check noted above; physical-device and assistive-technology coverage remains unchanged.
+
+### Inline editing refinement
+
+Restored desktop titles to 12px/400 and matching editing metrics. Removed routine save labels, the editor rail, and notes minimum heights; error/recovery feedback remains. Notes previews still clamp to two lines. Mobile inputs retain 16px without the enlarged 18px title. Autosave scheduling and API contracts are unchanged.
+
+Lint and production build passed. A manual Chromium fixture session confirmed title styling at 12px/400, empty and one-line notes at 19px, three lines at 58px, shrinking back to 19px, and no Saved label. No test files were added. This refinement has not been deployed.
+
+### Pointer switching and caret placement
+
+Mouse presses on another todo's title/notes no longer move focus before its click is delivered. Task switching starts the previous draft flush without waiting for the network. Title clicks capture the text offset before replacing the preview and restore that position in the textarea, instead of unconditionally moving to the end. Keyboard/menu activation retains the end-of-text default.
+
+Lint/build passed. Manual Chromium pointer input confirmed zero vertical displacement between mouse-down and mouse-up on the next task, successful activation, and caret offset 5 in a 17-character title after clicking its middle. No test files were added; not deployed.
+
+### Native text selection
+
+Desktop todo titles and notes now retain their textarea nodes between browsing and editing. Removed pointer-down cancellation and coordinate-based caret reconstruction. An unfocused editor collapses after an active pointer gesture completes, so another row stays in place while dragging. Empty notes hide on blur and inactive notes retain the two-line limit.
+
+Manual Chromium verification: zero target displacement on mouse-down when switching tasks; dragging selected characters 1–10, double-click selected the word “Second”, and moving focus to quick-add hid both empty note fields. Lint and build passed before the final Escape focus adjustment; final lint and typecheck also passed. No test files added; not deployed.
+
+### Todo interaction refactor
+
+Replaced per-row global listeners and local edit flags with one panel-level interaction controller. Extracted stable CSS-sized native fields, exceptional feedback, and mobile dialog ownership. Removed the old resizing effects, click-position reconstruction, and obsolete editor CSS. Autosave storage and API behavior remain in the existing store.
+
+Manual Chromium and WebKit sessions with intercepted local API fixtures observed:
+
+- Switching from one task to another: target displacement stayed at zero during mouse-down; only one empty-note placeholder remained visible during the gesture.
+- Fast drag selected characters 0–11; single-click placed a collapsed caret at offset 4; double-click selected “Second”. Keyboard Shift+ArrowRight selected offsets 2–4 in both engines.
+- Notes height was 19px for an empty field or one line, 77px for three lines plus a trailing newline, and returned to 19px when shortened. Menu activation focused notes reliably.
+- Mobile 390px inputs used 16px text with a 26px empty line. Back saved Chinese notes and returned focus to the originating task in both engines.
+- A timed notes edit emitted a description-only PATCH after five seconds, without a Saved label. A simulated HTTP 500 retained the draft and displayed exceptional feedback.
+- No page errors occurred in the desktop interaction sessions. Inspected a desktop capture for text alignment and absence of borders/status labels.
+
+Final lint, production build, and whitespace checks passed. No test files were added. These are local browser-engine checks, not physical-device validation; this refactor has not been deployed.
+
+### Truncated notes disclosure
+
+Desktop and mobile previews now expose Show more only when measured content exceeds the two-line viewport. The indicator responds to content and width changes; activating it expands and focuses notes. Manual Chromium checks at 1280px and 390px showed exactly one disclosure for a three-line note and none for a two-line note. Activation focused the description with all three lines visible. Lint/build and whitespace checks passed; not deployed.
+
+### Inline truncation indicator (replaces Show more)
+
+Removed the disclosure button, overflow state, and ResizeObserver. Collapsed desktop notes now paint the existing mirror with CSS two-line clamping and an inline ellipsis; the same textarea remains above it for native hit testing and selection. Mobile previews use the same CSS clamping treatment. Expanded text uses the native textarea presentation.
+
+Chromium and WebKit manual checks at 1280px and 390px confirmed an ellipsis for three-line notes and none for exactly two lines. Desktop height remained 38.375px before and after settling, and throughout mouse-down/drag; after release it expanded to 57.5625px while preserving selection offsets 1–12. No Show more button remained. Inspected desktop/mobile captures. Lint, build, and whitespace checks passed; not deployed.

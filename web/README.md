@@ -82,18 +82,18 @@ The API remains unauthenticated and has no per-user isolation. All clients using
 
 ## Todos
 
-Todos are part of the main calendar. Add a title, browse the open list while choosing your next time block, then check an item when finished. Completed items live in an expandable section below the open list and can be reopened. No separate page or tabs are needed; the former `/todos` URL redirects to today's calendar.
+Todos share a stable list in the calendar; completing an item does not move it. Quick-add remains an explicit Enter/button action. Titles and notes are editable in place, with no duplicate heading or Save/Cancel form. Notes use smaller, muted text and a two-line preview. On narrow screens, editing opens an accessible full-height modal with a back action and save status.
 
-Edit titles inline and confirm before deleting. Titles are preserved exactly, including surrounding whitespace, and accept 1–500 Unicode scalar values. PATCH sends only the changed title or uppercase status. The panel fetches the complete list and groups it by status. Todos and calendar entries remain independent; checking a todo does not change a time block.
+Text saves use a per-todo five-second throttle, not a debounce: continued typing does not postpone the first write. Only changed fields are PATCHed, each todo has one request in flight, and newer input survives older responses. Leaving a task, collapsing the panel, or navigating flushes pending changes. Completion is immediate and serialized with text writes. Titles accept 1–500 Unicode scalar values; notes accept 0–10,000. Invalid fields and IME compositions remain local while other valid fields may save.
 
-Failed writes retain the draft and never retry automatically. If a response is uncertain, refresh and inspect both lists, then explicitly allow further changes; retrying a create can duplicate a delayed save. Offline mode disables writes. Todo drafts, expanded sections and recovery state survive date navigation and panel collapse within the calendar. Navigating away or unloading warns about unsaved work; a reload still discards it. The panel supports keyboard controls and small screens.
+Unacknowledged drafts are stored locally with their server baseline. Reload recovery and conflicting remote changes require an explicit comparison. Failed or uncertain writes stop automatic retries; checking the server precedes retry or recovery. Reconnecting also reads before writing. Missing todos retain copyable drafts, and deletion waits for an in-flight save before removing the task. Browser-storage failures are reported; unload protection does not depend on a final asynchronous request. Calendar-entry drafts remain independent.
 
 ## Source map
 
 - `src/routes/`, `src/router.tsx`: typed routes and URL date state.
 - `src/api/client.ts`: shared cancellation, timeout and structured errors.
 - `src/api/entries.ts`, `src/api/todos.ts`: response validation and CRUD.
-- `src/features/todos/`: persistent todo panel, completed disclosure and inline editing.
+- `src/features/todos/`: persistent todo panel, inline notes, per-task autosave and recovery.
 - `src/features/entries/`: TanStack Form editor, query options, cache commits, and uncertain-write recovery.
 - `src/features/calendar/`: page layout (CSS Modules), timeline geometry and pointer interactions.
 - `src/lib/time.ts`: explicit-zone calendar calculations, civil-time resolution and validation.
@@ -114,3 +114,9 @@ Time blocks show the category badge immediately before the title. All durations 
 Deletion requires confirmation and is refused when any time entry references the category, including entries on other dates. Uncertain category writes never retry automatically. Refresh/check before explicitly retrying; a same-name row cannot prove a create succeeded. Category drafts survive recoverable failures in the current page session. Explicitly stopping request tracking does not cancel an already-sent request.
 
 See `../plans/20261105/03/` for the original concepts, updated design decisions, and implementation screenshots; see `VALIDATION.md` for browser checks and limitations.
+
+### Todo interaction architecture
+
+`useTodoInteraction` coordinates focus and pointer gestures once per panel. Focus determines the edited task; pointer gestures postpone layout changes until release, while keyboard focus updates immediately. Leaving a task flushes its draft independently of visual expansion. Rows do not install global event listeners or maintain competing edit state.
+
+`TodoTextField` keeps a stable native textarea for browser selection and uses a hidden text mirror for intrinsic CSS sizing, including trailing newlines. There is no zero-height measurement, ResizeObserver, pointer-down cancellation, or click-coordinate caret reconstruction. A field collapses its previous selection only after blur, and selected-text drag-and-drop is disabled without intercepting selection gestures. `TodoEditor` renders fields and task actions; `TodoFeedback` renders exceptional save/recovery feedback; `TodoSheet` owns the mobile dialog lifecycle. The existing draft store continues to own persistence, throttling, and recovery.
