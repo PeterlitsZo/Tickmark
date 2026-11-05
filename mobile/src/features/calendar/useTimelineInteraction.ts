@@ -385,6 +385,8 @@ export function useTimelineInteraction(options: Options) {
   }
   const tapping = Gesture.Tap()
     .enabled(!disabled)
+    // Android has no default movement limit; a swipe must fail this tap.
+    .maxDistance(10)
     .onEnd((event, success) => {
       if (success)
         scheduleOnRN(
