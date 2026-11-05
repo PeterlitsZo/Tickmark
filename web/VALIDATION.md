@@ -157,3 +157,37 @@ At 1440px and touch-emulated 390px, next/previous day navigation worked, the rem
 ### Deployment of the layout refinement
 
 Deployed to `https://tickmark.peterlits.me` on 2026-11-04, version `7f2e718b-5337-4cec-a2c1-2e0a395b8a3c`. This supersedes the local-only status above. Homepage and calendar navigation reference the latest build; calendar JavaScript and both CSS bundles match local artifacts byte-for-byte. A live read-only browser check confirmed the permanent Details panel, absence of the date-jump trigger and entries toolbar, successful API loading, and no runtime errors. No production records were modified during verification.
+
+## Todo page (2026-11-05, local only)
+
+Added `/todos` and calendar navigation. `npm --prefix web run build`, `npm --prefix web run lint`, and `git diff --check` passed. The existing TanStack CLI circular-dependency warning is non-fatal. No automated test files or dependencies were added.
+
+Browser checks used an isolated Chromium instance, Vite on port 5174 with an explicit proxy to the local Worker on port 8792, and D1 under `server/.wrangler/web-local`. No production data was changed.
+
+- Created a todo, edited its title, completed it, viewed Completed, reopened it, viewed All, reloaded, and deleted it with confirmation. The API retained surrounding spaces and emoji exactly. The temporary todo was removed afterward.
+- Verified Open/Completed/All against the actual API, including empty states. Default Open was restored on reload.
+- Interrupted a POST connection: the draft remained, further writes were locked, and the user could inspect All and explicitly allow changes after checking. There was no automatic write retry.
+- Rejected a navigation confirmation and retained the draft on `/todos`.
+- Checked 500 versus 501 emoji characters and composition Enter handling without creating records.
+- Visually reviewed desktop 1280px, mobile 390px, and calendar navigation at 320px. Fixed the narrow calendar header to keep the Todos link accessible. A separate touch-emulated 390px viewport had no horizontal overflow.
+
+Native Safari, physical devices, screen-reader speech, and virtual keyboards were not verified. This feature has not been deployed.
+
+## Integrated calendar and todos (2026-11-05, local only)
+
+This supersedes the separate Todo page layout above. Todos now stay in the main calendar's right column. Entry details open below them; mobile uses a collapsible bottom workspace instead of a modal. `/todos` redirects to the calendar.
+
+Validation used the current frontend on Vite port 5174 and a local Worker on port 8792. Concurrent category development restarted the original Worker during a request, so the remaining checks used an isolated server snapshot at commit `4596bda` and a copy of the local database. The interrupted write retained its title draft and recovered after refreshing and explicit acknowledgement. No production data was touched. Initial temporary records were removed from the original local database; demonstration records remain only in the isolated preview copy.
+
+Verified in Chromium:
+
+- Added and edited todos with surrounding spaces and emoji; completed, reopened, cancelled deletion, and confirmed deletion from the calendar. A new time entry was saved while the todo list remained available. Todo changes preserved an open entry draft.
+- Todo drafts survived date navigation, panel collapse/expansion, and viewport resizing. A delayed POST completed successfully after changing the calendar date, without resubmission.
+- Confirmed writes update the local list even when the following GET fails. Offline mode disabled writes and preserved the draft. Writes never automatically retried.
+- Completed items are disclosed in the same panel. The old `/todos` URL ended at `/calendar` with the panel visible.
+- At 1440×900, an overflowing list scrolled 200px while the add input stayed at y=63 and the entry editor stayed at y=397. The timeline retained its 844px height. Entry fields and todos have separate scroll containers.
+- At touch-emulated 390×844, entry fields scrolled 193px while the action footer remained at y=775. At 320×568, the timeline still had 100px of usable height and Save remained within the viewport. The selected 90-minute block was fully visible at 390px after the bottom workspace expanded. No horizontal document overflow was present.
+- Both drafts survived collapse and resizing. Rejecting the entry discard prompt kept its draft. Escape from a todo input did not close the entry editor.
+- No browser runtime errors were captured. Build (including TypeScript), lint and whitespace checks passed. No automated tests or test dependencies were added.
+
+Actual screenshots are saved under `plans/20261105/02/`: `implemented-desktop.png`, `implemented-mobile.png`, and `implemented-mobile-editor.png`. They show isolated demonstration data. Native Safari, physical-device keyboards, and screen-reader speech remain unverified. This implementation has not been deployed.

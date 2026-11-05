@@ -4,10 +4,9 @@
   --font-label: 12px;
   --space-field: 16px;
   --navigation-width: 204px;
-  --details-width: 304px;
+  --details-width: 360px;
   --header-height: 56px;
   --notification-height: min(176px, 24dvh);
-  --notification-reserve: calc(var(--notification-height) + 32px);
   color-scheme: light;
   --canvas: #fbfbfa;
   --surface: #ffffff;

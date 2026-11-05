@@ -1,6 +1,6 @@
 # Tickmark web
 
-A React browser client for recording completed activities. The single-day calendar supports pointer selection, moving and resizing entries, keyboard-accessible editing, and a responsive full-screen editor on small screens. It uses TanStack Router, Query and Form, TypeScript, Vite, and the existing Rust API.
+A React browser client for recording completed activities and managing todos. The single-day calendar supports pointer selection, moving and resizing entries, keyboard-accessible editing, and an inline editor alongside a persistent todo list. It uses TanStack Router, Query and Form, TypeScript, Vite, and the existing Rust API.
 
 ## Preview with the existing service
 
@@ -55,11 +55,13 @@ Static assets are uploaded with the Worker. Existing assets are served by the pl
 
 ## Layout
 
-Desktop uses a permanent details column: creating, editing, saving and cancelling do not resize the timeline. Below 760 CSS pixels, the editor overlays the calendar and makes its background inert. The time scale is 96px per hour. A gray draft stays visible during creation and follows edits to its time range.
+Desktop keeps Todos in the right column. Selecting or creating a time block opens its details underneath the list; closing the editor gives the space back to Todos. The list and editor fields scroll independently, while the todo heading, add input, and editor actions remain accessible. Opening details does not resize the desktop timeline.
 
-Global notices and uncertain-write recovery controls appear at the bottom right without moving the calendar. Field validation stays next to the affected input. Routine successful writes do not create extra notifications. The header has Today, previous/next day, refresh and add controls; it has no native date-picker trigger.
+Below 760 CSS pixels, the same workspace sits below the timeline. Todos can be collapsed to give the calendar more space. Opening entry details expands the bottom workspace while keeping the calendar and todos available; there is no modal or tab switch. The selected block is kept in view when the timeline height changes. Drafts survive resizing and collapsing the panel.
 
-See [current UI screenshots](docs/refinement/README.md) for isolated examples.
+The time scale is 96px per hour. A gray draft stays visible during creation and follows edits to its time range. Global notices appear over the calendar, away from editor actions. Field validation stays next to its input. The header has Today, previous/next day, refresh and add controls.
+
+The screenshots in `docs/refinement/` document the earlier calendar layout; see `VALIDATION.md` for the current integrated workspace verification.
 
 ## Interaction and data rules
 
@@ -78,14 +80,24 @@ See [current UI screenshots](docs/refinement/README.md) for isolated examples.
 
 The API remains unauthenticated and has no per-user isolation. All clients using the same service access the same entries. Serving the UI and API together does not change that behavior.
 
+## Todos
+
+Todos are part of the main calendar. Add a title, browse the open list while choosing your next time block, then check an item when finished. Completed items live in an expandable section below the open list and can be reopened. No separate page or tabs are needed; the former `/todos` URL redirects to today's calendar.
+
+Edit titles inline and confirm before deleting. Titles are preserved exactly, including surrounding whitespace, and accept 1–500 Unicode scalar values. PATCH sends only the changed title or uppercase status. The panel fetches the complete list and groups it by status. Todos and calendar entries remain independent; checking a todo does not change a time block.
+
+Failed writes retain the draft and never retry automatically. If a response is uncertain, refresh and inspect both lists, then explicitly allow further changes; retrying a create can duplicate a delayed save. Offline mode disables writes. Todo drafts, expanded sections and recovery state survive date navigation and panel collapse within the calendar. Navigating away or unloading warns about unsaved work; a reload still discards it. The panel supports keyboard controls and small screens.
+
 ## Source map
 
 - `src/routes/`, `src/router.tsx`: typed routes and URL date state.
-- `src/api/entries.ts`: cancellation, timeout, response validation, structured errors and CRUD.
+- `src/api/client.ts`: shared cancellation, timeout and structured errors.
+- `src/api/entries.ts`, `src/api/todos.ts`: response validation and CRUD.
+- `src/features/todos/`: persistent todo panel, completed disclosure and inline editing.
 - `src/features/entries/`: TanStack Form editor, query options, cache commits, and uncertain-write recovery.
 - `src/features/calendar/`: page layout (CSS Modules), timeline geometry and pointer interactions.
 - `src/lib/time.ts`: explicit-zone calendar calculations, civil-time resolution and validation.
-- `src/components/`: month/day navigation and the shared bottom-right notification host.
+- `src/components/`: month/day navigation and the shared notification host.
 - `src/styles/`: visual tokens and responsive styles.
 - `public/icon.svg`: the existing mobile Timeline mark.
 

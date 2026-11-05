@@ -10,16 +10,11 @@ import { useEntryMutations } from '../entries/useEntryMutations'
 import { EntryEditor, OperationStatus, type EditorSession } from '../entries/EntryEditor'
 import { NotificationViewport } from '../../components/NotificationViewport'
 import { Timeline } from './Timeline'
+import { TodoPanel } from '../todos/TodoPanel'
 import styles from './CalendarPage.module.css'
 
 export function CalendarPage({ date }: { date?: string }) {
-  const [compact, setCompact] = useState(() => window.matchMedia('(max-width: 759px)').matches)
-  useEffect(() => {
-    const media = window.matchMedia('(max-width: 759px)')
-    const update = () => setCompact(media.matches)
-    media.addEventListener('change', update)
-    return () => media.removeEventListener('change', update)
-  }, [])
+  const [todosExpanded, setTodosExpanded] = useState(true)
   const [zone, setZone] = useState(getTimeZone)
   const [online, setOnline] = useState(navigator.onLine)
   const [notice, setNotice] = useState('')
@@ -89,8 +84,8 @@ export function CalendarPage({ date }: { date?: string }) {
   }
   const heading = new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
   return <div className={styles.layout}>
-    <DateNavigator inert={compact && !!editor} key={day.slice(0, 7)} day={day} zone={zone} onDate={onDate} />
-    <main inert={compact && !!editor} className="calendar-main" aria-label="Calendar">
+    <DateNavigator key={day.slice(0, 7)} day={day} zone={zone} onDate={onDate} />
+    <main className="calendar-main" aria-label="Calendar">
       <header className="page-header">
         <div className="page-title"><h1 title={day}>{heading}</h1></div>
         <div className="header-actions"><DayControls day={day} zone={zone} onDate={onDate} /><button className={`icon-button refresh ${query.isFetching ? 'refreshing' : ''}`} aria-label={query.isFetching ? 'Refreshing entries' : 'Refresh entries'} aria-busy={query.isFetching} disabled={query.isFetching || !online} onClick={() => void query.refetch()}><RefreshCw size={18} /></button><button className="primary add-entry" aria-label="Add entry" onClick={() => create()} disabled={!!mutations.pending.create}><Plus size={16} /><span>Add entry</span></button></div>
@@ -98,11 +93,12 @@ export function CalendarPage({ date }: { date?: string }) {
       <span className="sr-only" role="status">{query.isFetching ? 'Loading entries' : ''}</span>
       <Timeline key={`${day}:${zone}`} day={day} range={range} zone={zone} entries={visibleEntries} lockedIds={lockedIds} selectedId={editor?.original?.id} draft={editor && !editor.original ? draftPreview : mutations.pending.create?.input ?? null} online={online} loading={query.isPending} onCreate={create} onOpen={open} onReplace={(entry, target) => void replace(entry, target)} beforeDrag={ready} />
     </main>
-    <aside className={`details-sidebar ${editor ? 'details-active' : ''}`} aria-label="Entry details">
-      {editor ? <EntryEditor key={editor.key} session={editor} mutations={mutations} online={online} modal={compact} notify={setNotice} onClose={closeEditor} onPreviewChange={setDraftPreview} closeGuard={closeGuard} />
-        : <header className="editor-heading"><h2>Details</h2></header>}
+    <aside className={styles.workspace} data-editing={!!editor} data-todos-expanded={todosExpanded} aria-label="Todos and entry details">
+      <TodoPanel expanded={todosExpanded} onToggle={() => setTodosExpanded(value => !value)} online={online} />
+      {editor && <div className={styles.details}>
+        <EntryEditor key={editor.key} session={editor} mutations={mutations} online={online} notify={setNotice} onClose={closeEditor} onPreviewChange={setDraftPreview} closeGuard={closeGuard} />
+      </div>}
     </aside>
-    {compact && editor && <div className="editor-backdrop" aria-hidden="true" />}
     <NotificationViewport notice={notice} onDismiss={dismissNotice}>
       {!online && <div className="notification-card" role="status"><strong><WifiOff size={14} /> Offline</strong><p>Reconnect to save changes. Your draft stays here.</p></div>}
       {query.isError && <div className="notification-card notification-error" role="alert"><strong><AlertCircle size={14} /> Could not load entries</strong><p>{query.error.message}</p><button className="text-button" disabled={!online || query.isFetching} onClick={() => void query.refetch()}>Try again</button></div>}

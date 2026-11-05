@@ -18,8 +18,8 @@ export function OperationStatus({ operation: op, mutations, online }: { operatio
     </div>}
   </div>
 }
-export function EntryEditor({ session, mutations, online, modal, notify, onClose, onPreviewChange, closeGuard }: {
-  modal: boolean; notify: (message: string) => void; onPreviewChange: (input: EntryInput | null) => void; session: EditorSession; mutations: EntryMutations; online: boolean; onClose: () => void; closeGuard: RefObject<() => boolean>
+export function EntryEditor({ session, mutations, online, notify, onClose, onPreviewChange, closeGuard }: {
+  notify: (message: string) => void; onPreviewChange: (input: EntryInput | null) => void; session: EditorSession; mutations: EntryMutations; online: boolean; onClose: () => void; closeGuard: RefObject<() => boolean>
 }) {
   const { input, original, zone } = session
   const opKey = original?.id ?? 'create'
@@ -87,16 +87,9 @@ export function EntryEditor({ session, mutations, online, modal, notify, onClose
     const target = original ? panel.current : panel.current?.querySelector<HTMLInputElement>('#entry-title')
     target?.focus({ preventScroll: true })
     function keydown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !event.defaultPrevented) {
+      if (event.key === 'Escape' && !event.defaultPrevented && panel.current?.contains(event.target as Node)) {
         event.preventDefault()
         if (canClose()) guard.current.onClose()
-      }
-      if (event.key === 'Tab' && window.matchMedia('(max-width: 759px)').matches) {
-        const nodes = document.querySelectorAll<HTMLElement>('.editor button:not(:disabled), .editor input:not(:disabled), .editor select:not(:disabled), .notification-viewport button:not(:disabled)')
-        if (!nodes?.length) return
-        const first = nodes[0], last = nodes[nodes.length - 1]
-        if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) { event.preventDefault(); last.focus() }
-        if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
       }
     }
     document.addEventListener('keydown', keydown)
@@ -118,9 +111,10 @@ export function EntryEditor({ session, mutations, online, modal, notify, onClose
     try { await mutations.submit('delete', undefined, original) }
     catch (error) { notify(error instanceof Error ? error.message : 'Could not delete this entry.') }
   }
-  return <section className="editor" ref={panel} tabIndex={-1} role={modal ? 'dialog' : 'region'} aria-modal={modal || undefined} aria-owns={modal ? 'notifications' : undefined} aria-labelledby="editor-heading">
+  return <section className="editor" ref={panel} tabIndex={-1} role="region" aria-labelledby="editor-heading">
     <header className="editor-heading"><div><h2 id="editor-heading">{original ? 'Edit entry' : 'New entry'}</h2></div><button className="icon-button" aria-label="Close editor" disabled={locked && operation?.status !== 'uncertain'} onClick={close}><X size={16} /></button></header>
     <form className="entry-form" noValidate onSubmit={event => { event.preventDefault(); void form.handleSubmit() }}>
+      <div className="entry-fields">
       <fieldset disabled={locked}>
         <form.Field name="title">{field => <div className="field"><label htmlFor="entry-title">Title</label><input id="entry-title" type="text" placeholder="Entry title" value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} onKeyDown={event => {
           if (event.key !== 'Enter') return
@@ -144,6 +138,7 @@ export function EntryEditor({ session, mutations, online, modal, notify, onClose
       <p className="timezone"><Clock3 size={15} />{zone}{Number.isFinite(start) && <span>{offsetLabel(start, zone)}</span>}</p>
       <div className="duration"><span>Duration</span><strong>{Number.isFinite(end - start) && end >= start ? duration(end - start) : '—'}</strong></div>
       {confirmDelete && !operation && <div className="delete-confirm" role="alert"><strong>Permanently delete this entry?</strong><p>This cannot be undone.</p><div className="row"><button type="button" className="danger-button" disabled={!online} onClick={() => void remove()}>Delete permanently</button><button type="button" className="secondary" onClick={() => setConfirmDelete(false)}>Keep entry</button></div></div>}
+      </div>
       <footer className="editor-actions">
         {original && <button type="button" className="delete-button" aria-label="Delete entry" disabled={locked || !online} onClick={() => setConfirmDelete(true)}><Trash2 size={17} /><span>Delete</span></button>}
         <div className="row"><button type="button" className="secondary" disabled={locked} onClick={close}>Cancel</button><button type="submit" className="primary" disabled={locked || !online}>{operation?.status === 'uncertain' ? 'Awaiting confirmation' : locked ? 'Saving…' : original ? 'Save changes' : 'Save entry'}</button></div>

@@ -36,6 +36,28 @@ export function Timeline({ day, range, zone, entries, lockedIds, selectedId, dra
   useEffect(() => {
     if (scroll.current) scroll.current.scrollTop = 8 * 60 * PIXELS_PER_MINUTE
   }, [day, zone])
+  const focusedEntry = entries.find(entry => entry.id === selectedId) ?? draft
+  const focusStart = focusedEntry?.start_time
+  const focusEnd = focusedEntry?.end_time
+  useEffect(() => {
+    const container = scroll.current
+    if (!container || focusStart === undefined || focusEnd === undefined || focusStart >= range.to || focusEnd < range.from) return
+    // The inline editor reduces the mobile timeline height. Keep the selected
+    // block's start visible without interfering with ordinary scrolling or dragging.
+    const reveal = () => {
+      if (gesture.current || !container.clientHeight) return
+      const top = TOP_PADDING + (Math.max(range.from, focusStart) - range.from) / 60 * PIXELS_PER_MINUTE
+      const blockHeight = (Math.min(range.to, focusEnd) - Math.max(range.from, focusStart)) / 60 * PIXELS_PER_MINUTE
+      const visibleHeight = Math.min(Math.max(32, blockHeight), Math.max(32, container.clientHeight - 48))
+      if (top < container.scrollTop || top + visibleHeight > container.scrollTop + container.clientHeight - 16) {
+        container.scrollTop = Math.max(0, top - 24)
+      }
+    }
+    reveal()
+    const observer = new ResizeObserver(reveal)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [focusStart, focusEnd, range.from, range.to])
   function timeAt(clientY: number) {
     const rect = canvas.current!.getBoundingClientRect()
     return clamp(range.from + (clientY - rect.top - TOP_PADDING) / PIXELS_PER_MINUTE * 60, range.from, range.to)
