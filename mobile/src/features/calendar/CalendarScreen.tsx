@@ -1,6 +1,7 @@
-import { StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { RotateCw } from "lucide-react-native";
+import { MoreHorizontal } from "lucide-react-native";
 import { IconButton } from "../../components/IconButton";
 import { DateHeader } from "../../components/DateHeader";
 import { QueryStatus } from "../../components/QueryStatus";
@@ -13,7 +14,7 @@ export default function CalendarScreen() {
   const { selectedDay, range, query } = useEntries();
   return (
     <SafeAreaView
-      edges={["top", "bottom", "left", "right"]}
+      edges={["top", "left", "right"]}
       style={styles.screen}
     >
       <DateHeader />
@@ -33,11 +34,15 @@ export default function CalendarScreen() {
           </Text>
         </View>
         <IconButton
-          icon={RotateCw}
-          label="Refresh entries"
+          icon={MoreHorizontal}
+          label="Calendar actions"
           loading={query.isRefetching}
           onPress={() => {
-            void query.refetch();
+            Alert.alert("Calendar", undefined, [
+              { text: "Refresh", onPress: () => { void query.refetch(); } },
+              { text: "Manage categories", onPress: () => router.push("/categories") },
+              { text: "Cancel", style: "cancel" },
+            ]);
           }}
         />
       </View>

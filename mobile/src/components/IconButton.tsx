@@ -53,6 +53,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: radii.control,
   },
-  primary: { backgroundColor: colors.ink },
+  primary: { backgroundColor: colors.accent },
   dimmed: { opacity: 0.5 },
 });

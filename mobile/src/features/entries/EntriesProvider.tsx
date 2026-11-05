@@ -1,3 +1,5 @@
+import { categoriesOptions } from "../categories/categoriesQueries";
+import { loadCategoryPreference, preferredCategoryId } from "../categories/categoryPreference";
 import NetInfo from "@react-native-community/netinfo";
 import { useCalendars } from "expo-localization";
 import {
@@ -13,6 +15,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -42,8 +45,13 @@ export type Draft = { input: EntryInput; entry?: Entry };
 function useEntriesState() {
   useCalendars();
   const client = useQueryClient();
+  const categories = useQuery(categoriesOptions());
+  const [preferenceReady, setPreferenceReady] = useState(false);
+  useEffect(() => { void loadCategoryPreference().then(() => setPreferenceReady(true)); }, []);
+  const calendarScroll = useRef<Record<string, number>>({});
   const [selectedDay, setSelectedDay] = useState(dayKey(new Date()));
   const [, setRevision] = useState(0);
+  const [draftPreview, setDraftPreview] = useState<EntryInput | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [online, setOnline] = useState(true);
   const [notice, setNotice] = useState("");
@@ -62,7 +70,7 @@ function useEntriesState() {
       focusManager.setFocused(state === "active");
       if (state === "active") {
         setRevision((value) => value + 1);
-        void client.invalidateQueries({ queryKey: entriesKey });
+        void client.invalidateQueries();
       }
     });
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -87,23 +95,31 @@ function useEntriesState() {
       selectedDay === dayKey(new Date())
         ? Math.max(range.from + 900, Math.floor(now / 300) * 300)
         : range.from + 10 * 3600;
+    setDraftPreview(null);
     setDraft({
       input: {
         title: "",
+        category_id: preferenceReady && categories.data ? preferredCategoryId(categories.data) : undefined,
         start_time: start ?? defaultEnd - 900,
         end_time: end ?? defaultEnd,
       },
     });
   };
   return {
+    categories,
+    preferenceReady,
     selectedDay,
     setSelectedDay,
+    saveCalendarScroll: (day: string, offset: number) => { calendarScroll.current[day] = offset; },
+    readCalendarScroll: (day: string) => calendarScroll.current[day],
     range,
     query,
     online,
     notice,
     setNotice,
     draft,
+    draftPreview,
+    setDraftPreview,
     setDraft,
     create,
     edit: (entry: Entry) => {
@@ -111,9 +127,11 @@ function useEntriesState() {
         setNotice("This entry has a change awaiting confirmation.");
         return;
       }
+      setDraftPreview(null);
       setDraft({
         input: {
           title: entry.title,
+          category_id: entry.category_id,
           start_time: entry.start_time,
           end_time: entry.end_time,
         },

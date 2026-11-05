@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 6,
   },
-  primary: { backgroundColor: colors.ink },
+  primary: { backgroundColor: colors.accent },
   danger: { backgroundColor: colors.dangerWash },
   text: { color: colors.ink, fontSize: 15, fontWeight: "600" },
   primaryText: { color: colors.surface },

@@ -1,6 +1,10 @@
 # Tickmark mobile
 
-A React Native app for recording completed activities. The calendar uses a single-day timeline: hold an empty area, drag out a time range, release, then describe what you did. Entries can also be added with the **+** button, browsed by date on the timeline, edited, and permanently deleted. There is no Entries tab.
+A React Native app for recording completed activities. The calendar uses a single-day timeline: hold an empty area, drag out a time range, release, then describe what you did. Entries can also be added with the **+** button, browsed by date on the timeline, edited, and permanently deleted. Bottom tabs separate **Calendar** and **Todos**. Todos are global across dates; create, edit, complete, reopen, or delete them from their own page. Tab switches retain in-session drafts, scroll positions, and completion disclosure. The legacy `/entries` route redirects to Calendar.
+
+Entries have named, colored categories. Open category management from the calendar menu or entry editor. The last category used for a successful creation is remembered on this device per API origin; missing preferences fall back to the lowest available ID. An empty category library lets the server create Default. Category-only edits, dragging, resizing, and uncertain-save reconciliation retain category IDs.
+
+Writes are never retried automatically. After an interrupted write, use **Check status**, inspect the refreshed data, and explicitly allow another change. Drafts survive navigation within the running app; they are not a persistent offline queue.
 
 ## Requirements
 
@@ -61,9 +65,9 @@ Local HTTP is for development builds. Preview and production builds should use t
 
 ## Installable preview builds
 
-Current Android refinement preview: [tickmark-refinement-arm64-preview.apk](build/tickmark-refinement-arm64-preview.apk). It uses `https://tickmark.peterlits.me`, runs without Metro, and targets ARM64 phones. This is a debug-key-signed Release preview for sideloading, not a Play Store release. SHA-256: `57eeca3ebb18f925f1e8bd6ed5dbf38de2be174b9a51f6b4ef8e33231fade259`.
+Historical Android refinement preview (does not include the new tabs, todos, or categories): [tickmark-refinement-arm64-preview.apk](build/tickmark-refinement-arm64-preview.apk). It uses `https://tickmark.peterlits.me`, runs without Metro, and targets ARM64 phones. This is a debug-key-signed Release preview for sideloading, not a Play Store release. SHA-256: `57eeca3ebb18f925f1e8bd6ed5dbf38de2be174b9a51f6b4ef8e33231fade259`.
 
-See `VALIDATION.md` for the current acceptance summary and `REFINEMENT.md` for detailed observations. Xiaomi-device keyboard behavior has not been verified. Local-API APK/simulator archives in `build/` are validation artifacts and are not suitable for a standalone phone.
+See `docs/validation/tabs/README.md` for the tabs implementation evidence and remaining device checks, and `VALIDATION.md` for the acceptance history and `REFINEMENT.md` for detailed observations. Xiaomi-device keyboard behavior has not been verified. Local-API APK/simulator archives in `build/` are validation artifacts and are not suitable for a standalone phone.
 
 The following older artifacts are from the original 1.0 implementation and do **not** contain the current interaction refinement.
 

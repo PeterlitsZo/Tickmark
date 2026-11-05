@@ -1,3 +1,6 @@
+import { router, usePathname } from "expo-router";
+import { useEntries } from "./EntriesProvider";
+import { categoryStyle } from "../categories/categoriesQueries";
 import BottomSheet, {
   BottomSheetBackdrop,
   BottomSheetScrollView,
@@ -32,6 +35,10 @@ import { EntryForm } from "./EntryForm";
 type Picker = { field: "start_time" | "end_time"; mode: "date" | "time" };
 
 export function EntryEditor({ draft }: { draft: Draft }) {
+  const pathname = usePathname();
+  const hidden = pathname === "/categories";
+  const { categories } = useEntries();
+  const [choosingCategory, setChoosingCategory] = useState(false);
   const editor = useEntryEditor(draft);
   const { input, setInput, busy, missing, uncertain, online, close } = editor;
   const [picker, setPicker] = useState<Picker | null>(null);
@@ -55,13 +62,15 @@ export function EntryEditor({ draft }: { draft: Draft }) {
     };
   }, []);
   useEffect(() => {
+    if (hidden) return;
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (picker) setPicker(null);
+      if (choosingCategory) setChoosingCategory(false);
+      else if (picker) setPicker(null);
       else close();
       return true;
     });
     return () => back.remove();
-  }, [close, picker]);
+  }, [close, picker, hidden, choosingCategory]);
 
   const backdrop = (props: BottomSheetBackdropProps) => (
     <BottomSheetBackdrop
@@ -127,8 +136,10 @@ export function EntryEditor({ draft }: { draft: Draft }) {
       </View>
     </BottomSheetFooter>
   );
+  if (hidden) return null;
   return (
     <BottomSheet
+      accessible={false}
       index={0}
       enableDynamicSizing
       maxDynamicContentSize={height - insets.top - 12}
@@ -137,7 +148,7 @@ export function EntryEditor({ draft }: { draft: Draft }) {
       enableHandlePanningGesture={false}
       enableContentPanningGesture={false}
       backdropComponent={backdrop}
-      footerComponent={picker ? undefined : footer}
+      footerComponent={picker || choosingCategory ? undefined : footer}
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustPan"
@@ -153,15 +164,15 @@ export function EntryEditor({ draft }: { draft: Draft }) {
     >
       <BottomSheetScrollView
         keyboardShouldPersistTaps="handled"
-        enableFooterMarginAdjustment={!picker}
+        enableFooterMarginAdjustment={!picker && !choosingCategory}
         contentContainerStyle={[
           styles.body,
-          { paddingBottom: picker ? Math.max(insets.bottom, 16) : 0 },
+          { paddingBottom: picker || choosingCategory ? Math.max(insets.bottom, 16) : 0 },
         ]}
       >
         <View style={styles.header}>
           <Text style={styles.heading}>
-            {picker
+            {choosingCategory ? "Choose category" : picker
               ? `${picker.field === "start_time" ? "Start" : "End"} ${picker.mode}`
               : draft.entry
                 ? "Edit entry"
@@ -169,12 +180,21 @@ export function EntryEditor({ draft }: { draft: Draft }) {
           </Text>
           <IconButton
             icon={X}
-            label={picker ? "Cancel time selection" : "Close entry editor"}
+            label={choosingCategory ? "Back to entry" : picker ? "Cancel time selection" : "Close entry editor"}
             disabled={busy}
-            onPress={picker ? () => setPicker(null) : close}
+            onPress={choosingCategory ? () => setChoosingCategory(false) : picker ? () => setPicker(null) : close}
           />
         </View>
-        {picker ? (
+        {choosingCategory ? (
+          <View style={{ gap: 8 }}>
+            {categories.data?.map(category => <View key={category.id} style={{ backgroundColor: categoryStyle(category.color).fill, borderRadius: 8 }}>
+              <Button label={`${input.category_id === category.id ? "✓" : "●"} ${category.name} · #${category.id}`} onPress={() => { setInput(previous => ({ ...previous, category_id: category.id })); editor.setFields(previous => ({ ...previous, category_id: "" })); setChoosingCategory(false); }} />
+            </View>)}
+            {categories.isSuccess && !categories.data.length && <Text style={{ color: colors.muted }}>No categories yet. Default will be created when you save.</Text>}
+            {categories.isError && <Button label="Retry loading categories" onPress={() => { void categories.refetch(); }} />}
+            <Button label="Manage categories" onPress={() => router.push("/categories")} />
+          </View>
+        ) : picker ? (
           <DateTimeSelector
             key={`${picker.field}-${picker.mode}`}
             mode={picker.mode}
@@ -195,6 +215,7 @@ export function EntryEditor({ draft }: { draft: Draft }) {
             inputRef={(instance) => {
               title.current = instance as ComponentRef<typeof TextInput> | null;
             }}
+            onChooseCategory={() => { Keyboard.dismiss(); setChoosingCategory(true); }}
             onSelect={(field, mode) => {
               Keyboard.dismiss();
               setPicker({ field, mode });

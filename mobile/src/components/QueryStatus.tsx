@@ -22,7 +22,7 @@ function StatusContent() {
             </Text>
             <Text style={styles.text}>
               Requested:{" "}
-              {entryTime({ ...operation.target, id: operation.original.id })}
+              {entryTime({ ...operation.original, ...operation.target, category_id: operation.target.category_id ?? operation.original.category_id })}
             </Text>
             <View
               style={{ flexDirection: "row", justifyContent: "space-between" }}

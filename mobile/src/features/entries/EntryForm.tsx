@@ -1,3 +1,4 @@
+import { CategoryField } from "../categories/CategoryField";
 import { BottomSheetTextInput } from "@gorhom/bottom-sheet";
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { Trash2 } from "lucide-react-native";
@@ -14,10 +15,12 @@ export function EntryForm({
   editor,
   inputRef,
   onSelect,
+  onChooseCategory,
 }: {
   draft: Draft;
   editor: ReturnType<typeof useEntryEditor>;
   inputRef: (instance: unknown) => void;
+  onChooseCategory: () => void;
   onSelect: (field: "start_time" | "end_time", mode: "date" | "time") => void;
 }) {
   const { input, setInput, busy, missing, uncertain, online } = editor;
@@ -41,6 +44,7 @@ export function EntryForm({
       {!!editor.fields.title && (
         <Text style={styles.error}>{editor.fields.title}</Text>
       )}
+      <CategoryField value={input.category_id} disabled={disabled} error={editor.fields.category_id} onChoose={onChooseCategory} />
       {(["start_time", "end_time"] as const).map((field) => (
         <EntryTimeRow
           key={field}

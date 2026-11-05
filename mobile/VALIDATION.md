@@ -1,3 +1,9 @@
+# Calendar / Todos update — November 5, 2026
+
+The current source adds bottom tabs, global todos, category management, category-aware entries, and per-origin category preferences. Typecheck, lint, Expo dependency compatibility, and iOS/Android exports pass. Native manual checks used isolated local data. See the [current evidence and limitations](docs/validation/tabs/README.md) for screenshots, lost-response recovery, draft retention, category-only saves, restart persistence, and narrow layouts. No automated tests were added. Previously distributed APKs and simulator archives do not contain this update.
+
+---
+
 > Visual follow-up: entry accents are rectangular children clipped by the outer rounded surface, giving a straight inner edge. Each surface leaves a 2 dp bottom gap (capped at one quarter of very short entries); logical duration, hit geometry and overlap columns are unchanged. Typecheck, lint and Android Release build passed; native read-only visual review confirmed consecutive entries are separated. Android preview was refreshed; iOS/local archives predate this change.
 
 > Follow-up: timeline scale is now 144 dp/hour (previously 81). Entry, drag and draft heights use actual duration with no 24 dp floor. Overlap columns compare timestamps directly. Typecheck, lint and Android Release build passed; installed production preview was checked read-only, confirming 12:20–12:30 and 12:30–13:00 are full-width consecutive blocks. Very short entries may clip their labels; their duration is not enlarged. The iOS ZIP and local validation APK predate this follow-up.

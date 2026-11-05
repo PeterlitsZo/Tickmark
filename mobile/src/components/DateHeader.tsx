@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     gap: 5,
     borderRadius: 7,
   },
-  selectedDay: { backgroundColor: colors.ink, borderRadius: 7 },
+  selectedDay: { backgroundColor: colors.accent, borderRadius: 7 },
   selectedText: { color: colors.surface },
   weekday: { fontSize: 11, color: colors.muted, fontWeight: "500" },
   dayNumber: { fontSize: 17, color: colors.ink, fontWeight: "500" },

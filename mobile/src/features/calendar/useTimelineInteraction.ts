@@ -178,7 +178,7 @@ export function useTimelineInteraction(options: Options) {
     const repeated =
       otherOccurrences(first).length || otherOccurrences(last).length;
     setLabel(
-      `${entryTime({ id: "preview", title: "", start_time: first, end_time: last })} · ${duration(last - first)}${repeated ? ` · ${offsetLabel(first)} / ${offsetLabel(last)}` : ""}`,
+      `${entryTime({ id: "preview", category_id: "1", title: "", start_time: first, end_time: last })} · ${duration(last - first)}${repeated ? ` · ${offsetLabel(first)} / ${offsetLabel(last)}` : ""}`,
     );
   }
   useAnimatedReaction(

@@ -1,3 +1,5 @@
+import { useEntries } from "../entries/EntriesProvider";
+import { categoryStyle } from "../categories/categoriesQueries";
 import { CornerDownLeft, CornerDownRight } from "lucide-react-native";
 import { StyleSheet, Text, View } from "react-native";
 import type { TimeRange } from "../../api/entries";
@@ -20,15 +22,20 @@ export function TimeBlock({
   pending: boolean;
   onEdit: () => void;
 }) {
+  const { categories } = useEntries();
+  const category = categories.data?.find(itemCategory => itemCategory.id === item.entry.category_id);
+  const tone = categoryStyle(category?.color);
+  const categoryName = category?.name ?? (categories.isPending ? "Loading" : "Unknown");
   const visibleHeight = item.height - Math.min(2, item.height / 4);
   return (
     <View
       accessible
       accessibilityRole="button"
-      accessibilityLabel={`${item.entry.title}, ${clockTime(item.entry.start_time)} to ${clockTime(item.entry.end_time)}${pending ? ", saving" : ". Edit entry."}`}
+      accessibilityLabel={`${categoryName}, ${item.entry.title}, ${clockTime(item.entry.start_time)} to ${clockTime(item.entry.end_time)}${pending ? ", saving" : ". Edit entry."}`}
       onAccessibilityTap={onEdit}
       style={[
         styles.block,
+        { backgroundColor: tone.fill },
         blockFrame(item, width),
         { height: visibleHeight, paddingVertical: Math.min(4, visibleHeight / 2) },
         dimmed && { opacity: 0.3 },
@@ -36,12 +43,13 @@ export function TimeBlock({
         item.entry.start_time === item.entry.end_time && styles.point,
       ]}
     >
-      <View pointerEvents="none" style={styles.accentBar} />
+      <View pointerEvents="none" style={[styles.accentBar, { backgroundColor: tone.ink }]} />
       <View style={styles.titleRow}>
         {item.entry.start_time < range.from && (
           <CornerDownRight size={12} color={colors.accent} />
         )}
-        <Text numberOfLines={1} style={styles.title}>
+        <Text numberOfLines={1} style={[styles.category, { color: tone.ink }]}>{categoryName}</Text>
+        <Text numberOfLines={1} style={[styles.title, { color: tone.ink }]}>
           {item.entry.title}
         </Text>
         {item.entry.end_time > range.to && (
@@ -49,7 +57,7 @@ export function TimeBlock({
         )}
       </View>
       {visibleHeight > 44 && (
-        <Text numberOfLines={1} style={styles.time}>
+        <Text numberOfLines={1} style={[styles.time, { color: tone.ink }]}>
           {clockTime(item.entry.start_time)} – {clockTime(item.entry.end_time)}
           {pending ? " · Pending" : ""}
         </Text>
@@ -80,6 +88,7 @@ const styles = StyleSheet.create({
     width: 3,
     backgroundColor: colors.blockBorder,
   },
+  category: { fontSize: 10, lineHeight: 14, paddingHorizontal: 4, borderRadius: 3, backgroundColor: "#FFFFFFAA", maxWidth: "38%", flexShrink: 0 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 3 },
   title: {
     flex: 1,

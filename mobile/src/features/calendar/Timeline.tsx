@@ -1,3 +1,4 @@
+import { categoryStyle } from "../categories/categoriesQueries";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AppState,
@@ -35,9 +36,13 @@ export function Timeline() {
     range,
     query,
     selectedDay,
+    saveCalendarScroll,
+    readCalendarScroll,
     create,
     edit,
     draft,
+    draftPreview,
+    categories,
     online,
     mutations,
     setNotice,
@@ -60,7 +65,7 @@ export function Timeline() {
       (query.data?.items ?? []).map((entry) => [entry.id, entry]),
     );
     for (const operation of Object.values(mutations.pending)) {
-      const target = { ...operation.target, id: operation.original.id };
+      const target = { ...operation.original, ...operation.target, category_id: operation.target.category_id ?? operation.original.category_id };
       const intersects =
         target.start_time === target.end_time
           ? target.start_time >= range.from && target.start_time < range.to
@@ -97,7 +102,7 @@ export function Timeline() {
     choose: (entries, y) => setChoices({ entries, y }),
     commit: (entry, start_time, end_time) => {
       void mutations
-        .replace(entry, { title: entry.title, start_time, end_time })
+        .replace(entry, { title: entry.title, category_id: entry.category_id, start_time, end_time })
         .catch((error: unknown) => {
           setNotice(
             error instanceof Error
@@ -111,8 +116,11 @@ export function Timeline() {
     scrollY.set(event.contentOffset.y);
   });
   const isToday = selectedDay === dayKey(new Date());
-  const draftStart = draft ? Math.max(range.from, draft.input.start_time) : 0;
-  const draftEnd = draft ? Math.min(range.to, draft.input.end_time) : 0;
+  const preview = draftPreview ?? draft?.input;
+  const previewCategory = categories.data?.find(category => category.id === preview?.category_id);
+  const previewTone = categoryStyle(previewCategory?.color);
+  const draftStart = preview ? Math.max(range.from, preview.start_time) : 0;
+  const draftEnd = preview ? Math.min(range.to, preview.end_time) : 0;
   return (
     <GestureDetector gesture={interaction.gesture}>
       <View
@@ -127,7 +135,7 @@ export function Timeline() {
             const minute = isToday
               ? (seconds(new Date()) - range.from) / 60 - 120
               : 8 * 60;
-            const offset = Math.max(
+            const offset = readCalendarScroll(selectedDay) ?? Math.max(
               0,
               Math.min(height + PAD * 2 - layout.height, minute * PPM),
             );
@@ -141,6 +149,8 @@ export function Timeline() {
           <Animated.ScrollView
             ref={scrollRef}
             onScroll={onScroll}
+            onScrollEndDrag={event => saveCalendarScroll(selectedDay, event.nativeEvent.contentOffset.y)}
+            onMomentumScrollEnd={event => saveCalendarScroll(selectedDay, event.nativeEvent.contentOffset.y)}
             scrollEventThrottle={16}
             scrollEnabled={!interaction.locked && !draft}
             bounces={false}
@@ -225,12 +235,14 @@ export function Timeline() {
                   style={[
                     styles.selection,
                     {
+                      backgroundColor: previewTone.fill,
+                      right: 12,
                       top: ((draftStart - range.from) / 60) * PPM + PAD,
                       height: ((draftEnd - draftStart) / 60) * PPM,
                     },
                   ]}
                 >
-                  <Text style={styles.selectionText}>New entry</Text>
+                  <Text numberOfLines={1} style={[styles.selectionText, { color: previewTone.ink }]}>{previewCategory?.name ? `${previewCategory.name} · ` : ""}{preview?.title || "New entry"}</Text>
                 </View>
               )}
             </View>

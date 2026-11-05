@@ -12,6 +12,7 @@ export const rangeKey = (from: number, to: number) => [...entriesKey, from, to];
 export function sameInput(a: EntryInput, b: EntryInput) {
   return (
     a.title === b.title &&
+    a.category_id === b.category_id &&
     a.start_time === b.start_time &&
     a.end_time === b.end_time
   );
