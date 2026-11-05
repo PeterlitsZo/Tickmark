@@ -1,10 +1,12 @@
+mod category_api;
+mod category_repository;
 mod repository;
 mod todo_api;
 mod todo_repository;
 
 use futures_util::StreamExt;
 use repository::D1Repository;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use tickmark_core::{EntryInput, EntryService, Error as CoreError, TimeEntry, TimeRange};
 use worker::{Context, Env, Method, Request, Response, event};
@@ -15,23 +17,36 @@ const MAX_BODY_BYTES: usize = 16 * 1024;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Input {
+    #[serde(default, deserialize_with = "present")]
+    category_id: Option<String>,
     title: String,
     start_time: i64,
     end_time: i64,
 }
 
-impl From<Input> for EntryInput {
-    fn from(input: Input) -> Self {
-        Self {
+// Missing fields are optional; explicit null values are invalid.
+fn present<'de, D: Deserializer<'de>, T: Deserialize<'de>>(d: D) -> Result<Option<T>, D::Error> {
+    T::deserialize(d).map(Some)
+}
+
+impl TryFrom<Input> for EntryInput {
+    type Error = ApiError;
+    fn try_from(input: Input) -> Result<Self, ApiError> {
+        Ok(Self {
+            category_id: input
+                .category_id
+                .map(|id| integer(&id, "category_id"))
+                .transpose()?,
             title: input.title,
             start_time: input.start_time,
             end_time: input.end_time,
-        }
+        })
     }
 }
 
 #[derive(Serialize)]
 struct Entry {
+    category_id: String,
     id: String,
     title: String,
     start_time: i64,
@@ -42,6 +57,7 @@ impl From<TimeEntry> for Entry {
     fn from(entry: TimeEntry) -> Self {
         Self {
             id: entry.id.to_string(),
+            category_id: entry.category_id.to_string(),
             title: entry.title,
             start_time: entry.start_time,
             end_time: entry.end_time,
@@ -142,6 +158,18 @@ impl From<CoreError> for ApiError {
                 "ENTRY_NOT_FOUND",
                 "The requested entry does not exist.",
             ),
+            CoreError::CategoryNotFound => Self::new(
+                404,
+                "NOT_FOUND",
+                "CATEGORY_NOT_FOUND",
+                "The requested category does not exist.",
+            ),
+            CoreError::CategoryInUse => Self::new(
+                409,
+                "FAILED_PRECONDITION",
+                "CATEGORY_IN_USE",
+                "The category is referenced by time entries.",
+            ),
             CoreError::TodoNotFound => Self::new(
                 404,
                 "NOT_FOUND",
@@ -158,7 +186,7 @@ impl From<CoreError> for ApiError {
 }
 
 async fn input(req: &mut Request) -> Result<EntryInput, ApiError> {
-    json_input::<Input>(req, "Provide only title as a string, and start_time and end_time as integers; all are required.").await.map(Into::into)
+    json_input::<Input>(req, "Provide title as a string, start_time and end_time as integers, and optionally category_id as a decimal string; null and unknown fields are not allowed.").await?.try_into()
 }
 
 async fn json_input<T: serde::de::DeserializeOwned>(
@@ -257,6 +285,9 @@ fn range(req: &Request) -> Result<TimeRange, ApiError> {
 
 async fn handle(mut req: Request, env: Env) -> Result<Response, ApiError> {
     let path = req.path();
+    if path == category_api::COLLECTION || path.starts_with("/api/v1/categories/") {
+        return category_api::handle(req, env).await;
+    }
     if path == todo_api::COLLECTION || path.starts_with("/api/v1/todos/") {
         return todo_api::handle(req, env).await;
     }

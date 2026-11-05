@@ -1,5 +1,9 @@
 //! Platform-independent time-entry and todo rules and persistence boundaries.
+mod category;
 mod todo;
+pub use category::{
+    Category, CategoryColor, CategoryRepository, CategoryService, CreateCategory, UpdateCategory,
+};
 mod todo_filter;
 
 use std::fmt;
@@ -9,6 +13,7 @@ pub const MAX_TIMESTAMP: i64 = 9_007_199_254_740_991;
 
 #[derive(Debug, Clone)]
 pub struct TimeEntry {
+    pub category_id: i64,
     pub id: i64,
     pub title: String,
     pub start_time: i64,
@@ -17,6 +22,7 @@ pub struct TimeEntry {
 
 #[derive(Debug)]
 pub struct EntryInput {
+    pub category_id: Option<i64>,
     pub title: String,
     pub start_time: i64,
     pub end_time: i64,
@@ -37,6 +43,8 @@ pub enum Error {
     InvalidTimeRange,
     NotFound,
     TodoNotFound,
+    CategoryNotFound,
+    CategoryInUse,
     InvalidFilter(&'static str),
     Storage(String),
 }
@@ -47,6 +55,8 @@ impl fmt::Display for Error {
             Self::InvalidField { field, message } => write!(f, "{field}: {message}"),
             Self::InvalidTimeRange => f.write_str("Invalid time range"),
             Self::NotFound => f.write_str("Entry not found"),
+            Self::CategoryNotFound => f.write_str("Category not found"),
+            Self::CategoryInUse => f.write_str("Category is in use"),
             Self::TodoNotFound => f.write_str("Todo not found"),
             Self::InvalidFilter(message) => write!(f, "Invalid filter: {message}"),
             Self::Storage(message) => write!(f, "Storage failure: {message}"),
@@ -68,6 +78,12 @@ fn validate_timestamp(value: i64, field: &'static str) -> Result<(), Error> {
 
 impl EntryInput {
     fn validate(mut self) -> Result<Self, Error> {
+        if self.category_id.is_some_and(|id| id <= 0) {
+            return Err(Error::InvalidField {
+                field: "category_id",
+                message: "Must be a positive integer.",
+            });
+        }
         self.title = self.title.trim().to_owned();
         if !(1..=500).contains(&self.title.chars().count()) {
             return Err(Error::InvalidField {

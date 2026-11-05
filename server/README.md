@@ -1,6 +1,6 @@
 # Tickmark server
 
-A Rust workspace for completed time entries and todos. `core` owns validation, business operations, in-memory todo filtering, and the asynchronous repository traits. `cloudflare-worker` implements HTTP and D1 persistence. Core has no platform dependencies.
+A Rust workspace for completed time entries, categories, and todos. `core` owns validation, business operations, in-memory todo filtering, and the asynchronous repository traits. `cloudflare-worker` implements HTTP and D1 persistence. Core has no platform dependencies.
 
 ## Local development
 
@@ -44,10 +44,19 @@ Open http://localhost:8791. This workflow stores local D1 data under `.wrangler/
 | --- | --- | --- |
 | POST | `/api/v1/entries` | 201 with the created entry |
 | GET | `/api/v1/entries?from=...&to=...` | 200 with `{ "items": [...] }` |
-| PUT | `/api/v1/entries/:id` | 200 with the fully replaced entry |
+| PUT | `/api/v1/entries/:id` | 200 with the updated entry |
 | DELETE | `/api/v1/entries/:id` | 204 without a body |
 
-An entry contains `id` (a decimal string), `title`, `start_time`, and `end_time`. Both timestamps are required integer UNIX seconds in `0..=9007199254740991`. End must be at least start. Titles are trimmed and must contain 1–500 Unicode scalar values. Overlapping and zero-duration entries are allowed. POST and PUT require all three editable fields and reject unknown fields; PUT never creates missing entries. JSON request bodies are limited to 16 KiB. Writes are last-write-wins and deletes are permanent.
+An entry contains `id` and `category_id` (decimal strings), `title`, `start_time`, and `end_time`. Both timestamps are required integer UNIX seconds in `0..=9007199254740991`. End must be at least start. Titles are trimmed and must contain 1–500 Unicode scalar values. Overlapping and zero-duration entries are allowed. POST and PUT require `title`, `start_time`, and `end_time`, accept optional `category_id`, and reject unknown fields; PUT never creates missing entries. JSON request bodies are limited to 16 KiB. Writes are last-write-wins and deletes are permanent.
+
+`category_id`, when provided, must be a decimal string representing a positive
+signed 64-bit integer and must reference an existing category. Explicit null,
+numeric JSON values, malformed IDs, and out-of-range IDs are rejected. POST
+without `category_id` uses the category with the smallest numeric ID. If none
+exists, it atomically creates `Default` with color `GRAY` and uses it. This also
+works after all unused categories have been deleted. PUT without `category_id`
+preserves the entry's existing category; providing it changes the category.
+A nonexistent category returns `404 / CATEGORY_NOT_FOUND` without changing data.
 
 The list requires both `from` and `to`, with `from < to`. The range is `[from, to)`. Entries match when `start_time < to AND end_time > from`; zero-duration entries match when their timestamp is at least from and below to. Results retain original timestamps and are ordered by start time, then numeric ID, ascending. All matches are returned without pagination or silent truncation. Missing, duplicate, unknown, or invalid query parameters are rejected.
 
@@ -112,12 +121,82 @@ Errors follow the [AIP-193 HTTP JSON structure](https://google.aip.dev/193#http1
 | HTTP | status | reason |
 | --- | --- | --- |
 | 400 | INVALID_ARGUMENT | INVALID_JSON, INVALID_FIELD, INVALID_TIME_RANGE, INVALID_FILTER |
-| 404 | NOT_FOUND | ENTRY_NOT_FOUND, TODO_NOT_FOUND, ROUTE_NOT_FOUND |
+| 404 | NOT_FOUND | ENTRY_NOT_FOUND, TODO_NOT_FOUND, CATEGORY_NOT_FOUND, ROUTE_NOT_FOUND |
+| 409 | FAILED_PRECONDITION | CATEGORY_IN_USE |
 | 405 | UNIMPLEMENTED | METHOD_NOT_ALLOWED |
 | 415 | INVALID_ARGUMENT | UNSUPPORTED_MEDIA_TYPE |
 | 500 | INTERNAL | INTERNAL_ERROR |
 
 405 includes an Allow header. The 405 and 415 mappings preserve this API's HTTP semantics rather than strictly adopting Google's RPC-to-HTTP mapping. The browser client uses relative API URLs and is served from the same origin through Worker Static Assets. Local Vite development proxies `/api` to the Worker; CORS is not required.
+
+## Categories API
+
+Each time entry belongs to exactly one category. Categories are shared by all
+clients, and these routes use the same unauthenticated access as entries.
+
+| Method | Path | Result |
+| --- | --- | --- |
+| POST | `/api/v1/categories` | 201 with the created category; requires `name` and `color` |
+| GET | `/api/v1/categories` | 200 with `{ "items": [...] }`, ordered by numeric ID ascending |
+| PATCH | `/api/v1/categories/:id` | 200 with the updated category; provide `name` and/or `color` |
+| DELETE | `/api/v1/categories/:id` | 204 if unused; 409 if referenced by any time entry |
+
+A category looks like `{"id":"1","name":"Work","color":"BLUE"}`. IDs are
+positive signed 64-bit integers encoded as decimal strings. Names are trimmed
+and must contain 1–100 Unicode scalar values. Duplicate names are allowed.
+
+`color` is a case-sensitive semantic enum: `RED`, `ORANGE`, `YELLOW`, `GREEN`,
+`BLUE`, `PURPLE`, `PINK`, or `GRAY`. The server stores and returns only that enum;
+each frontend chooses actual display colors, including theme-specific values.
+HEX/RGB values and unknown or lowercase enum values are rejected. Automatically
+created categories use the literal name `Default` and color `GRAY`; there is no
+localization. They can be renamed, recolored, or deleted when unused.
+
+PATCH preserves omitted fields and requires at least one field. Both writes
+reject nulls, unknown fields, and incorrect types. GET accepts no query
+parameters and returns all categories without pagination. Updating or deleting
+a nonexistent category returns `404 / CATEGORY_NOT_FOUND`. Deleting a referenced
+category returns `409 / CATEGORY_IN_USE`; entries are never deleted or reassigned
+as a side effect. Foreign keys protect references during concurrent writes.
+Existing body limits, Content-Type rules, and error envelopes apply.
+
+```sh
+curl -i http://localhost:8787/api/v1/categories \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Work","color":"BLUE"}'
+curl -i http://localhost:8787/api/v1/categories
+```
+
+Use the returned ID as `category_id` when creating an entry. The following
+example assumes that the returned ID was `1`:
+
+```sh
+curl -i http://localhost:8787/api/v1/entries \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Planning","start_time":1793754000,"end_time":1793757600,"category_id":"1"}'
+curl -i -X PATCH http://localhost:8787/api/v1/categories/1 \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Study","color":"GREEN"}'
+curl -i -X DELETE http://localhost:8787/api/v1/categories/1
+```
+
+The final request returns 409 while the entry references that category.
+
+### Category migration and rollout
+
+Migration `0003_create_categories.sql` creates categories and assigns existing
+entries to `Default` / `GRAY`, preserving their IDs, titles, timestamps, and the
+entry ID allocation high-water mark. An empty database remains without categories
+until a client creates one or an entry needs the automatic default. The migration
+rebuilds the entries table with a non-null category foreign key and an index.
+
+Before production rollout, record a D1 recovery point or backup, pause writes,
+apply pending migrations, deploy the new Worker, verify entry/category reads and
+writes, then resume writes. An old Worker cannot insert entries after this
+migration because it does not supply the new required column. Rolling back only
+the Worker is therefore unsafe; database recovery and Worker rollback must be
+coordinated while writes remain paused. These changes are not a zero-downtime
+migration. Local validation does not apply remote migrations or deploy releases.
 
 ## Todos API
 

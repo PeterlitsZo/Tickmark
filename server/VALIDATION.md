@@ -80,3 +80,67 @@ was deleted afterward.
 
 Remote rollout and a todo user interface remain separate work, as specified by
 the implementation plan.
+
+## Category backend — 2026-11-05
+
+Implemented and verified only server changes. No automated test files were
+added. No remote migration or deployment was performed. The frontend build was
+not run; Wrangler read the existing `web/dist` assets for its dry run.
+
+Final commands passed from `server/`:
+
+```sh
+cargo fmt --all -- --check
+cargo check --workspace --locked
+cargo clippy --workspace --locked --target wasm32-unknown-unknown -- -D warnings
+npx wrangler deploy --config cloudflare-worker/wrangler.example.jsonc --dry-run
+```
+
+The dry run includes release Wasm compilation and wasm-opt. Runtime requests
+used a local Worker on port 8794 (inspector 9234). Wrangler could not download
+Request.cf metadata and used its local fallback; the Worker started and served
+the requests successfully.
+
+### Migration observations
+
+- Applied all three migrations to isolated local D1 storage at
+  `.wrangler/category-fresh-20261105`; the category list was initially empty.
+  Applying migrations again reported no pending migrations.
+- In `.wrangler/category-upgrade-20261105`, applied 0001, inserted historical
+  entry ID 7 and deleted entry ID 99, then applied 0003. Entry 7 retained its
+  title and timestamps and received category 1 (`Default`, `GRAY`). The stored
+  entry sequence remained 99 and the next inserted entry received ID 100.
+- In an in-memory SQLite database with foreign keys enabled, migrated an empty
+  entries table whose last allocated ID was 123. No category was created by
+  migration and the next entry received ID 124 after a category was added.
+- `PRAGMA foreign_key_check` returned no violations on both local D1 databases.
+  After concurrent HTTP writes, an explicit orphan-reference query returned zero.
+
+### Manual HTTP observations
+
+| Area | Observed result |
+| --- | --- |
+| Automatic category | A legacy create in an empty database creates `Default` / `GRAY`; the entry returns its string category_id |
+| Default selection | With categories 3, 6, and 7, omission selects 3 even after category 3 was renamed |
+| Empty reset and concurrency | After deleting all entries and categories, 12 concurrent legacy creates share exactly one newly created default category |
+| Explicit category | Creating with an existing category succeeds; a missing category returns CATEGORY_NOT_FOUND and creates no entry or default category |
+| Update compatibility | Explicit category changes succeed; an old-format update preserves the selected category; missing-category updates fail without changing title or category |
+| Category management | Create, ascending list, combined edits, name-only and color-only edits work; omitted fields are preserved; duplicate names are allowed |
+| Color enum | All eight uppercase enum values round-trip; lowercase and HEX colors return 400 |
+| Invalid input | Blank name, empty PATCH, null fields, unknown fields, numeric category_id, zero and overflowing IDs return 400 |
+| Reference protection | Deleting a referenced category returns 409 CATEGORY_IN_USE; after reassignment, deletion returns 204 and repeated deletion returns 404 |
+| Concurrent deletion | Simultaneous category deletion and explicit create/update yielded deletion 204 and write CATEGORY_NOT_FOUND; no orphan references remained |
+| Missing resources | Missing category PATCH returns CATEGORY_NOT_FOUND; missing entry PUT still returns ENTRY_NOT_FOUND |
+| Routing | Unsupported category PUT returns 405 with Allow: PATCH, DELETE; category query parameters return 400 |
+| Existing behavior | Entry trimming, range listing, zero-duration creation, deletion, and todo create/delete still work; API responses retain Cache-Control: no-store |
+
+Source inspection confirmed that the existing Web parser ignores additional
+entry fields and the mobile API accepts JSON without strict response-key
+validation. Both clients omit category_id in their writes, which is covered by
+the old-format HTTP requests above. No client files were changed by this work.
+The isolated validation databases were retained for inspection; the local Worker
+was stopped after verification.
+
+Production rollout still requires a coordinated migration and deployment with
+writes paused, as documented in README.md. Local verification does not establish
+that a production migration has been applied.
