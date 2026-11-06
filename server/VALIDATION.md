@@ -1,5 +1,8 @@
 # Todo backend validation — 2026-11-05
 
+For the latest time-entry description verification, see the final section dated
+2026-11-06. Earlier body-limit observations describe their historical revisions.
+
 Validation used Rust 1.97.1, Worker SDK 0.8.7, Wrangler 4.157.0, and the
 tracked example configuration. All database changes were local. No remote
 migrations, deployments, application tests, or test scripts were added or run.
@@ -234,3 +237,89 @@ Production release order remains migration 0004, new server, then a Web editor
 using the new contract. The server deployment command bundles the current Web
 checkout. Rollbacks must retain the new column/data and use matching server/Web
 versions, as documented in README.md. The local Worker was stopped after checks.
+
+## Time-entry descriptions — 2026-11-06 (plan 02)
+
+Implemented server changes only: migration 0005, core model/validation, D1
+storage, HTTP input/output, and API documentation. No Web/mobile source changes,
+automated tests, or test files were added. Verification used one-off local HTTP
+requests and isolated local D1 databases; no remote migration or deployment was
+performed.
+
+### Build checks
+
+These commands passed from `server/`:
+
+```sh
+cargo fmt --all -- --check
+cargo check --workspace --locked
+cargo clippy --workspace --locked -- -D warnings
+cargo clippy --workspace --locked --target wasm32-unknown-unknown -- -D warnings
+npm run build:local
+```
+
+The combined build passed Web type checking, Vite compilation, release Wasm
+compilation, wasm-opt, and Wrangler deployment dry run. The existing route
+generator circular-dependency warning remains. `git diff --check` passed.
+
+### Migration and persistence
+
+- Created `.wrangler/entry-description-upgrade-20261106` with migrations
+  0001–0004, historical category 7, and entry 41 (title `Historical entry`,
+  timestamps 100/200, category 7). Applied 0005 with local `d1 execute --file`.
+  The entry retained all original values and gained an empty description.
+- Applied all five migrations to
+  `.wrangler/entry-description-fresh-20261106` with local `d1 migrations apply`.
+  Repeating the command reported no pending migrations.
+- A legacy SQL INSERT omitting description succeeded after migration and
+  returned entry 49 with an empty description. `PRAGMA foreign_key_check`
+  returned no violations before and after runtime verification.
+- The first HTTP insert in the upgrade database received ID 42. On the fresh
+  database, a legacy POST created category 1 (`Default`, `GRAY`) and entry 1
+  with an empty description.
+- Stopped and restarted the upgrade Worker after writes. The complete list of
+  seven entries, including maximum-length descriptions, matched the saved JSON
+  snapshot exactly after restart.
+
+All Wrangler operations used the tracked
+`cloudflare-worker/wrangler.example.jsonc`, `--local`, and explicit
+`--persist-to` paths. Runtime ports were 8802/9242 (upgrade HTTP/inspector) and
+8803/9243 (fresh). Both Worker processes were stopped after verification. Local
+databases and the persistence snapshot remain under ignored `.wrangler/` paths.
+
+### Manual HTTP observations
+
+| Area | Observed result |
+| --- | --- |
+| Legacy create | POST without description returned 201, trimmed title, assigned category, and empty description |
+| Description lifecycle | PUT replaced, cleared, and preserved whitespace-only descriptions; changing only description succeeded |
+| Old-client update | PUT changing title/time or category without description preserved the stored note |
+| Plain text | Chinese, emoji, leading/trailing spaces, tabs, line breaks, and literal HTML-like content round-tripped unchanged |
+| Scalar boundary | POST and PUT accepted 10,000 emoji; 10,001 returned 400 with a description field violation |
+| Large JSON | POST and PUT accepted 30,082-byte Chinese UTF-8 bodies, 42,068-byte raw emoji bodies, and 126,068-byte escaped emoji bodies containing a 500-emoji title and 10,000-emoji description |
+| Body boundary | Entry POST and PUT accepted exactly 131072 bytes and rejected 131073 with the body-size error |
+| Input rejection | Both POST and PUT rejected null, number, boolean, array, object descriptions, and unknown fields with 400; type errors identified body |
+| Required fields | Description-only PUT remained invalid; title and both timestamps are still required |
+| Existing errors | Invalid time range returned INVALID_TIME_RANGE; missing category returned CATEGORY_NOT_FOUND; missing entry returned ENTRY_NOT_FOUND |
+| Atomic failure | An invalid-category PUT containing a new description left the entire existing entry unchanged |
+| Concurrent compatibility | Simultaneous new-description PUT and old-format PUT both returned 200; the new description remained stored |
+| Listing | All records included string descriptions; historical rows returned empty strings; ordering remained start time then numeric ID |
+| Range boundaries | A spanning record and point at from were included; records ending at from, starting at to, and points at to were excluded |
+| Delete | DELETE returned 204 without a body, followed by 404 on repeated deletion |
+| Todo regression | 10,000-emoji description accepted, status-only PATCH preserved it, 10,001 rejected; body boundary remained 131072/131073 bytes |
+| Category regression | Body boundary remained 16384/16385 bytes |
+
+Source inspection of `web/src/api/entries.ts` and
+`mobile/src/api/entries.ts` confirmed that both response parsers explicitly
+select known fields, ignore additional description fields, and omit description
+in writes. The legacy-shaped HTTP requests above cover that contract. This was
+not a browser/mobile UI validation; the Web editor belongs to plan 03.
+
+### Rollout status
+
+Migration 0005 has only been applied to isolated local databases. Release order
+is migration, new server, then the Web description editor. Retain the column and
+its data during rollback and use matching server/Web versions. The README
+documents these steps and the fact that server deployment bundles Web assets.
+The earlier statement that entries use a 16 KiB body limit is superseded by
+this change; categories still use 16 KiB.

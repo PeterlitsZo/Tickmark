@@ -16,6 +16,7 @@ pub struct TimeEntry {
     pub category_id: i64,
     pub id: i64,
     pub title: String,
+    pub description: String,
     pub start_time: i64,
     pub end_time: i64,
 }
@@ -24,6 +25,7 @@ pub struct TimeEntry {
 pub struct EntryInput {
     pub category_id: Option<i64>,
     pub title: String,
+    pub description: Option<String>,
     pub start_time: i64,
     pub end_time: i64,
 }
@@ -76,6 +78,16 @@ fn validate_timestamp(value: i64, field: &'static str) -> Result<(), Error> {
     Ok(())
 }
 
+fn validate_description(description: &str) -> Result<(), Error> {
+    if description.chars().count() > 10_000 {
+        return Err(Error::InvalidField {
+            field: "description",
+            message: "Must contain at most 10000 Unicode scalar values.",
+        });
+    }
+    Ok(())
+}
+
 impl EntryInput {
     fn validate(mut self) -> Result<Self, Error> {
         if self.category_id.is_some_and(|id| id <= 0) {
@@ -90,6 +102,9 @@ impl EntryInput {
                 field: "title",
                 message: "Must contain 1 to 500 Unicode scalar values after trimming.",
             });
+        }
+        if let Some(description) = &self.description {
+            validate_description(description)?;
         }
         validate_timestamp(self.start_time, "start_time")?;
         validate_timestamp(self.end_time, "end_time")?;

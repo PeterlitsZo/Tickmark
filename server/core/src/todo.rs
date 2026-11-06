@@ -1,4 +1,6 @@
-use crate::{Error, todo_filter::TodoFilter, validate_id, validate_timestamp};
+use crate::{
+    Error, todo_filter::TodoFilter, validate_description, validate_id, validate_timestamp,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TodoStatus {
@@ -56,16 +58,6 @@ fn validate_title(title: &str) -> Result<(), Error> {
         return Err(Error::InvalidField {
             field: "title",
             message: "Must contain 1 to 500 Unicode scalar values.",
-        });
-    }
-    Ok(())
-}
-
-fn validate_description(description: &str) -> Result<(), Error> {
-    if description.chars().count() > 10_000 {
-        return Err(Error::InvalidField {
-            field: "description",
-            message: "Must contain at most 10000 Unicode scalar values.",
         });
     }
     Ok(())

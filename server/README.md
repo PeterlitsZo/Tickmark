@@ -47,7 +47,7 @@ Open http://localhost:8791. This workflow stores local D1 data under `.wrangler/
 | PUT | `/api/v1/entries/:id` | 200 with the updated entry |
 | DELETE | `/api/v1/entries/:id` | 204 without a body |
 
-An entry contains `id` and `category_id` (decimal strings), `title`, `start_time`, and `end_time`. Both timestamps are required integer UNIX seconds in `0..=9007199254740991`. End must be at least start. Titles are trimmed and must contain 1–500 Unicode scalar values. Overlapping and zero-duration entries are allowed. POST and PUT require `title`, `start_time`, and `end_time`, accept optional `category_id`, and reject unknown fields; PUT never creates missing entries. JSON request bodies are limited to 16 KiB. Writes are last-write-wins and deletes are permanent.
+An entry contains `id` and `category_id` (decimal strings), `title`, `description`, `start_time`, and `end_time`. Both timestamps are required integer UNIX seconds in `0..=9007199254740991`. End must be at least start. Titles are trimmed and must contain 1–500 Unicode scalar values. Overlapping and zero-duration entries are allowed. POST and PUT require `title`, `start_time`, and `end_time`, accept optional `category_id` and `description`, and reject unknown fields; PUT never creates missing entries. Entry JSON request bodies are limited to 128 KiB (131072 bytes). Writes are last-write-wins and deletes are permanent.
 
 `category_id`, when provided, must be a decimal string representing a positive
 signed 64-bit integer and must reference an existing category. Explicit null,
@@ -57,6 +57,54 @@ exists, it atomically creates `Default` with color `GRAY` and uses it. This also
 works after all unused categories have been deleted. PUT without `category_id`
 preserves the entry's existing category; providing it changes the category.
 A nonexistent category returns `404 / CATEGORY_NOT_FOUND` without changing data.
+
+`description` is plain text with at most 10,000 Unicode scalar values. It is
+always a string in create, replace, and list responses, including `""` for
+historical entries. Leading/trailing whitespace, newlines, and HTML-like text
+are preserved without trimming or markup processing.
+
+| Request description | POST | PUT |
+| --- | --- | --- |
+| Omitted | Store an empty string | Preserve the current stored description |
+| Empty string | Store an empty string | Clear the description |
+| Nonempty string | Store verbatim after validation | Replace verbatim after validation |
+| Null or non-string | 400 INVALID_FIELD (body) | 400 INVALID_FIELD (body) |
+| More than 10,000 scalars | 400 INVALID_FIELD (description) | 400 INVALID_FIELD (description) |
+
+PUT still requires title and both timestamps; description-only PUT is not
+supported. Omitted descriptions are preserved atomically in the UPDATE, so old
+clients can change title, time, or category without clearing newer notes.
+The JSON byte limit is separate from the Unicode scalar limit and is enforced
+while reading the request stream. Categories retain their 16 KiB body limit;
+todos retain their 128 KiB limit.
+
+Example POST or full PUT body:
+
+```json
+{
+  "title": "Planning",
+  "description": "Review priorities.\nRecord follow-up actions.",
+  "start_time": 1793754000,
+  "end_time": 1793757600,
+  "category_id": "1"
+}
+```
+
+The successful response includes the assigned `id`:
+
+```json
+{
+  "id": "42",
+  "category_id": "1",
+  "title": "Planning",
+  "description": "Review priorities.\nRecord follow-up actions.",
+  "start_time": 1793754000,
+  "end_time": 1793757600
+}
+```
+
+To clear notes, send a full PUT with `"description": ""`. To preserve them,
+omit that field, as the legacy curl examples below do.
 
 The list requires both `from` and `to`, with `from < to`. The range is `[from, to)`. Entries match when `start_time < to AND end_time > from`; zero-duration entries match when their timestamp is at least from and below to. Results retain original timestamps and are ordered by start time, then numeric ID, ascending. All matches are returned without pagination or silent truncation. Missing, duplicate, unknown, or invalid query parameters are rejected.
 
@@ -427,3 +475,23 @@ part of an ordinary application rollback.
 Lists still return all todos with full descriptions. Response size and filtering
 cost grow with the number and length of notes; pagination and a separate detail
 endpoint are outside this change.
+
+### Time-entry description rollout
+
+Apply `0005_add_time_entry_description.sql` before deploying this server, then
+release the Web description editor. The additive migration retains existing
+entries, category references, indexes, and IDs; old INSERT statements can omit
+the new column and receive its empty-string default. Existing Web/mobile entry
+parsers ignore the extra response field and their old-format PUT requests
+preserve descriptions.
+
+The deployment command bundles the current Web checkout. Keep the old frontend
+for a server-first release if the new editor is not ready. Roll back the Web
+client first; if reverting the server, also use matching older Web assets.
+Retain the description column and its data. An older server rejects writes
+containing description, but can still write the original columns. Do not drop
+the column or restore an old database during an ordinary application rollback.
+
+Entry lists include full descriptions for all matching records. Pagination and
+a separate detail endpoint are outside this change. See [validation](VALIDATION.md)
+for local-only verification; this document does not establish remote rollout.

@@ -14,21 +14,21 @@ use worker::{Context, Env, Method, Request, Response, event};
 const COLLECTION: &str = "/api/v1/entries";
 enum JsonBodyLimit {
     Standard,
-    Todo,
+    Description,
 }
 
 impl JsonBodyLimit {
     fn bytes(&self) -> usize {
         match self {
             Self::Standard => 16 * 1024,
-            Self::Todo => 128 * 1024,
+            Self::Description => 128 * 1024,
         }
     }
 
     fn message(&self) -> &'static str {
         match self {
             Self::Standard => "JSON request bodies must not exceed 16384 bytes.",
-            Self::Todo => "JSON request bodies must not exceed 131072 bytes.",
+            Self::Description => "JSON request bodies must not exceed 131072 bytes.",
         }
     }
 }
@@ -39,6 +39,8 @@ struct Input {
     #[serde(default, deserialize_with = "present")]
     category_id: Option<String>,
     title: String,
+    #[serde(default, deserialize_with = "present")]
+    description: Option<String>,
     start_time: i64,
     end_time: i64,
 }
@@ -57,6 +59,7 @@ impl TryFrom<Input> for EntryInput {
                 .map(|id| integer(&id, "category_id"))
                 .transpose()?,
             title: input.title,
+            description: input.description,
             start_time: input.start_time,
             end_time: input.end_time,
         })
@@ -68,6 +71,7 @@ struct Entry {
     category_id: String,
     id: String,
     title: String,
+    description: String,
     start_time: i64,
     end_time: i64,
 }
@@ -78,6 +82,7 @@ impl From<TimeEntry> for Entry {
             id: entry.id.to_string(),
             category_id: entry.category_id.to_string(),
             title: entry.title,
+            description: entry.description,
             start_time: entry.start_time,
             end_time: entry.end_time,
         }
@@ -205,7 +210,7 @@ impl From<CoreError> for ApiError {
 }
 
 async fn input(req: &mut Request) -> Result<EntryInput, ApiError> {
-    json_input::<Input>(req, "Provide title as a string, start_time and end_time as integers, and optionally category_id as a decimal string; null and unknown fields are not allowed.").await?.try_into()
+    json_input_with_limit::<Input>(req, "Provide title as a string, start_time and end_time as integers, and optionally category_id as a decimal string and description as a string; null and unknown fields are not allowed.", JsonBodyLimit::Description).await?.try_into()
 }
 
 async fn json_input<T: serde::de::DeserializeOwned>(

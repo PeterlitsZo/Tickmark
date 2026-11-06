@@ -120,7 +120,7 @@ pub(crate) async fn handle(mut req: Request, env: Env) -> Result<Response, ApiEr
     match (method, id) {
         (Method::Post, None) => {
             let input: CreateInput =
-                json_input_with_limit(&mut req, "Provide title as a string and optionally description as a string; null and unknown fields are not allowed.", JsonBodyLimit::Todo).await?;
+                json_input_with_limit(&mut req, "Provide title as a string and optionally description as a string; null and unknown fields are not allowed.", JsonBodyLimit::Description).await?;
             let todo = service
                 .create(
                     CreateTodo {
@@ -148,7 +148,7 @@ pub(crate) async fn handle(mut req: Request, env: Env) -> Result<Response, ApiEr
             let input: PatchInput = json_input_with_limit(
                 &mut req,
                 "Provide title, status, and/or description as strings; null and unknown fields are not allowed.",
-                JsonBodyLimit::Todo,
+                JsonBodyLimit::Description,
             )
             .await?;
             let todo = service
