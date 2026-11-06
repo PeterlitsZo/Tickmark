@@ -57,9 +57,9 @@ h1 { font-size: var(--font-title); line-height: 24px; font-weight: 600; letter-s
 .block-content strong { font-weight: 600; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; flex-shrink: 0; }
 .block-content span { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; flex-shrink: 0; }
 .block-content small { font-size: 10px; }
-.is-selected .block-content { outline: 2px solid var(--accent); outline-offset: -2px; }
+.is-selected .block-content { outline: 2px solid var(--category-border, var(--block-border)); outline-offset: -2px; }
 .is-pending { opacity: .7; }
-.is-pending .block-content { outline: 1px dashed var(--accent); outline-offset: -1px; }
+.is-pending .block-content { outline: 1px dashed var(--category-border, var(--block-border)); outline-offset: -1px; }
 .is-point { background: var(--canvas); border: 0; }
 .is-point .block-content { background: var(--canvas); padding: 4px 8px 4px 20px; flex-direction: row; align-items: center; }
 .is-point .block-content::before { content: ''; position: absolute; width: 7px; height: 7px; background: var(--accent); border-radius: 50%; left: 6px; }
