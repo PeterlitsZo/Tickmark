@@ -17,7 +17,7 @@ export function Timeline({ day, range, zone, entries, lockedIds, selectedId, dra
   const gesture = useRef<Gesture | null>(null)
   const frame = useRef(0)
   const suppressClick = useRef(false)
-  const [preview, setPreview] = useState<{ entry?: Entry; input: EntryInput } | null>(null)
+  const [preview, setPreview] = useState<{ entry?: Entry; input: EntryInput; mode: DragMode } | null>(null)
   const [now, setNow] = useState(() => Date.now() / 1000)
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now() / 1000), 30000)
@@ -97,7 +97,7 @@ export function Timeline({ day, range, zone, entries, lockedIds, selectedId, dra
       const delta = (g.clientY - g.startY + (scroll.current?.scrollTop ?? 0) - g.startScroll) / PIXELS_PER_MINUTE * 60
       g.preview = dragTimes(g.mode, g.origin, delta, range)
     }
-    setPreview({ entry: g.entry, input: g.preview })
+    setPreview({ entry: g.entry, input: g.preview, mode: g.mode })
   }
   function autoScroll() {
     const g = gesture.current
@@ -158,7 +158,7 @@ export function Timeline({ day, range, zone, entries, lockedIds, selectedId, dra
   blockActions.current = { down, open: onOpen, suppressClick }
   return <div className="timeline-shell">
     <div className="timeline-scroll" ref={scroll} aria-label="Daily timeline">
-      <div className={`timeline-canvas ${preview ? 'dragging' : ''}`} ref={canvas} style={{ height: height + TOP_PADDING + 40 }} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onLostPointerCapture={() => { if (gesture.current?.active) cancel() }}>
+      <div className={`timeline-canvas ${preview ? 'dragging' : ''}`} ref={canvas} data-drag-mode={preview?.mode} style={{ height: height + TOP_PADDING + 40 }} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onLostPointerCapture={() => { if (gesture.current?.active) cancel() }}>
         {ticks.map(tick => <div className="hour-row" key={tick.t} style={{ top: TOP_PADDING + (tick.t - range.from) / 60 * PIXELS_PER_MINUTE }}><div className="hour-label">{tick.label}{tick.repeated && <small>{offsetLabel(tick.t, zone)}</small>}</div><div className="hour-rule" /></div>)}
         <div className="hour-row" style={{ top: height + TOP_PADDING }}><div className="hour-label">00:00</div><div className="hour-rule" /></div>
         <div className="timeline-track" style={{ top: TOP_PADDING, height }} onPointerDown={event => down(event, 'create')}>
@@ -190,11 +190,23 @@ const EntryBlock = memo(function EntryBlock({ entry, top, height, column, column
 }) {
   const categoryName = category?.name ?? (categoriesLoading ? 'Loading category' : 'Category unavailable')
   const time = entryTime(entry, zone)
+  function pointerMode(event: ReactPointerEvent<HTMLButtonElement>): DragMode {
+    // Measure the visible button, excluding the gap below the time block.
+    const rect = event.currentTarget.getBoundingClientRect()
+    const y = event.clientY - rect.top
+    if (locked || event.pointerType !== 'mouse' || entry.start_time === entry.end_time || rect.height < 12 ||
+      y < 0 || y >= rect.height || event.clientX < rect.left || event.clientX >= rect.right) return 'move'
+    const edge = Math.min(4, (rect.height - 8) / 2)
+    if (y < edge && entry.start_time >= from) return 'start'
+    if (y >= rect.height - edge && entry.end_time <= to) return 'end'
+    return 'move'
+  }
+  function updateCursor(event: ReactPointerEvent<HTMLButtonElement>) {
+    event.currentTarget.style.cursor = locked ? 'default' : pointerMode(event) === 'move' ? 'grab' : 'ns-resize'
+  }
   return <div data-category-color={categoryTone(category?.color)} className={`time-block ${height < 60 ? 'block-small' : ''} ${height < 39 ? 'block-tiny' : ''} ${height > 0 && height < 14 ? 'block-sliver' : ''} ${selected ? 'is-selected' : ''} ${locked ? 'is-pending' : ''} ${entry.start_time === entry.end_time ? 'is-point' : ''}`} onPointerDown={event => event.stopPropagation()} style={{ top, height, left: `calc(${column / columns * 100}% + 3px)`, width: `calc(${100 / columns}% - 8px)` }}>
-    <button className="block-content" disabled={locked} onPointerDown={event => actions.current.down(event, 'move', entry)} onClick={event => { if (event.detail === 0 && !actions.current.suppressClick.current) actions.current.open(entry) }} title={`${entry.title} · ${time} · ${categoryName}`} aria-label={`${entry.title}, ${time}, ${duration(entry.end_time - entry.start_time)}, ${categoryName}`}>
+    <button className="block-content" disabled={locked} onPointerEnter={updateCursor} onPointerMove={updateCursor} onPointerLeave={event => { event.currentTarget.style.cursor = '' }} onPointerDown={event => { updateCursor(event); actions.current.down(event, pointerMode(event), entry) }} onClick={event => { if (event.detail === 0 && !actions.current.suppressClick.current) actions.current.open(entry) }} title={`${entry.title} · ${time} · ${categoryName}`} aria-label={`${entry.title}, ${time}, ${duration(entry.end_time - entry.start_time)}, ${categoryName}`}>
       <BlockHeading title={entry.title} categoryName={categoryName} /><span>{time}</span>{locked && <small>Awaiting confirmation</small>}
     </button>
-    {!locked && height > 0 && entry.start_time >= from && <button className="resize-handle resize-start" aria-label={`Adjust start of ${entry.title}`} onPointerDown={event => actions.current.down(event, 'start', entry)} onClick={event => { if (event.detail === 0) actions.current.open(entry) }} />}
-    {!locked && height > 0 && entry.end_time <= to && <button className="resize-handle resize-end" aria-label={`Adjust end of ${entry.title}`} onPointerDown={event => actions.current.down(event, 'end', entry)} onClick={event => { if (event.detail === 0) actions.current.open(entry) }} />}
   </div>
 })

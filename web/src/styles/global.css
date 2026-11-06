@@ -65,12 +65,8 @@ h1 { font-size: var(--font-title); line-height: 24px; font-weight: 600; letter-s
 .is-point .block-content::before { content: ''; position: absolute; width: 7px; height: 7px; background: var(--accent); border-radius: 50%; left: 6px; }
 .is-point .block-content strong { font-size: 12px; width: auto; }
 .is-point .block-content span { width: auto; }
-.resize-handle { pointer-events: auto; position: absolute; left: 10%; width: 80%; height: min(12px, calc((100% - min(2px, 25%)) / 2)); padding: 0; overflow: hidden; z-index: 2; cursor: ns-resize; opacity: 0; touch-action: none; }
-.resize-handle::after { content: ''; display: block; margin: auto; width: 26px; height: 4px; max-height: 100%; border-radius: 3px; background: var(--accent); border: 1px solid white; }
-.resize-start { top: 0; }
-.resize-end { bottom: min(2px, 25%); }
-.time-block:hover .resize-handle, .time-block:focus-within .resize-handle, .is-selected .resize-handle { opacity: 1; }
 .dragging, .dragging * { cursor: grabbing !important; }
+.dragging:is([data-drag-mode=start], [data-drag-mode=end]), .dragging:is([data-drag-mode=start], [data-drag-mode=end]) * { cursor: ns-resize !important; }
 .selection-preview { position: absolute; left: 3px; right: 8px; pointer-events: none; z-index: 5; border-radius: 3px; }
 .selection-preview .block-content { pointer-events: none; background: #e1e9dfee; outline: 1px dashed var(--accent); outline-offset: -1px; cursor: inherit; }
 .selection-preview .block-content strong { font-weight: 600; }

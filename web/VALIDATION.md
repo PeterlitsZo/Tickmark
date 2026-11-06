@@ -306,3 +306,18 @@ Desktop and mobile previews now expose Show more only when measured content exce
 Removed the disclosure button, overflow state, and ResizeObserver. Collapsed desktop notes now paint the existing mirror with CSS two-line clamping and an inline ellipsis; the same textarea remains above it for native hit testing and selection. Mobile previews use the same CSS clamping treatment. Expanded text uses the native textarea presentation.
 
 Chromium and WebKit manual checks at 1280px and 390px confirmed an ellipsis for three-line notes and none for exactly two lines. Desktop height remained 38.375px before and after settling, and throughout mouse-down/drag; after release it expanded to 57.5625px while preserving selection offsets 1–12. No Show more button remained. Inspected desktop/mobile captures. Lint, build, and whitespace checks passed; not deployed.
+
+## Calendar edge dragging (2026-11-06)
+
+Removed visible resize handles and their overlay buttons. Mouse hover and pointer-down now share the same hit calculation on the visible content button. Each edge uses at most 4px, shrinking to preserve at least 8px of central movement space. Visible fragments below 12px and zero-duration entries only move. Clipped day boundaries cannot resize; touch and pen input use the existing tap/long-press movement flow and editor for time changes.
+
+Manual Chromium verification used an isolated local page with intercepted API responses and captured writes, without production data or new test files:
+
+- Checked 5, 10, 15, 20, 30, and 60-minute blocks, zero duration, overlapping columns, both cross-day clipping directions, and visible heights immediately below/at/above 12px.
+- Central mouse drags preserved duration and emitted one write per release for every duration sampled. Top and bottom drags changed only the corresponding endpoint; the initial mode remained fixed as the pointer crossed into the body.
+- For a 22px visible block, mouse positions below 4px and at/above 18px selected resize; the central interval selected move. The visual gap did not hit the block. A real drag starting at 3.5px used start resizing, shifted only the start by five minutes, and wrote once.
+- Escape and pointer cancellation produced no writes. Keyboard Enter and a touch tap opened the editor. No resize-handle elements remained.
+- Chromium touch emulation confirmed that a long press at the top edge moved the entire block and preserved duration. A swipe scrolled the timeline without a write. Mouse edge resizing remained available after touch input.
+- Lint, production build, and whitespace checks passed. The existing build-tool `replaceRouteChunk` circular-dependency warning remains non-blocking.
+
+Physical touch devices and Safari were not validated in this pass. No deployment was performed.
