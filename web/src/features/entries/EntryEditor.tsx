@@ -35,7 +35,6 @@ export function EntryEditor({ session, mutations, online, notify, onClose, onPre
   const initialCompleted = useRef(mutations.completed[opKey] ?? 0)
   const panel = useRef<HTMLElement>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [confirmDelete, setConfirmDelete] = useState(false)
   const initial = { category_id: input.category_id ?? '', title: input.title, start: civilValue(input.start_time, zone), end: civilValue(input.end_time, zone), startOccurrence: input.start_time, endOccurrence: input.end_time }
   const form = useForm({
     defaultValues: initial,
@@ -125,6 +124,8 @@ export function EntryEditor({ session, mutations, online, notify, onClose, onPre
       : null)
   }, [original, start, end, values.title, values.category_id, onPreviewChange])
   async function remove() {
+    if (!original || locked || !online) return
+    if (!window.confirm(`Permanently delete “${original.title}”? This cannot be undone.`)) return
     try { await mutations.submit('delete', undefined, original) }
     catch (error) { notify(error instanceof Error ? error.message : 'Could not delete this entry.') }
   }
@@ -155,10 +156,9 @@ export function EntryEditor({ session, mutations, online, notify, onClose, onPre
       </fieldset>
       <p className="timezone"><Clock3 size={15} />{zone}{Number.isFinite(start) && <span>{offsetLabel(start, zone)}</span>}</p>
       <div className="duration"><span>Duration</span><strong>{Number.isFinite(end - start) && end >= start ? duration(end - start) : '—'}</strong></div>
-      {confirmDelete && !operation && <div className="delete-confirm" role="alert"><strong>Permanently delete this entry?</strong><p>This cannot be undone.</p><div className="row"><button type="button" className="danger-button" disabled={!online} onClick={() => void remove()}>Delete permanently</button><button type="button" className="secondary" onClick={() => setConfirmDelete(false)}>Keep entry</button></div></div>}
       </div>
       <footer className="editor-actions">
-        {original && <button type="button" className="delete-button" aria-label="Delete entry" disabled={locked || !online} onClick={() => setConfirmDelete(true)}><Trash2 size={17} /><span>Delete</span></button>}
+        {original && <button type="button" className="delete-button" aria-label="Delete entry" disabled={locked || !online} onClick={() => void remove()}><Trash2 size={17} /><span>Delete</span></button>}
         <div className="row"><button type="button" className="secondary" disabled={locked} onClick={close}>Cancel</button><button type="submit" className="primary" disabled={locked || !online || !categoryReady}>{operation?.status === 'uncertain' ? 'Awaiting confirmation' : locked ? 'Saving…' : original ? 'Save changes' : 'Save entry'}</button></div>
       </footer>
     </form>
