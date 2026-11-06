@@ -11,6 +11,7 @@ import { dayRange, getTimeZone, today, validDay, intersects, civilValue } from '
 import { DateNavigator, DayControls } from '../../components/DateNavigator'
 import { rangeOptions, entryOrder } from '../entries/entriesQueries'
 import { useEntryMutations } from '../entries/useEntryMutations'
+import { EntrySheet } from '../entries/EntrySheet'
 import { EntryEditor, OperationStatus, type EditorSession } from '../entries/EntryEditor'
 import { NotificationViewport } from '../../components/NotificationViewport'
 import { Timeline } from './Timeline'
@@ -67,7 +68,7 @@ export function CalendarPage({ date }: { date?: string }) {
       if (op.kind !== 'replace' || !op.original || !op.input) continue
       const index = items.findIndex(e => e.id === op.original!.id)
       if (index >= 0) items.splice(index, 1)
-      if (intersects(op.input, range)) items.push({ ...op.original, ...op.input, category_id: op.input.category_id ?? op.original.category_id })
+      if (intersects(op.input, range)) items.push({ ...op.original, ...op.input, description: op.input.description ?? op.original.description, category_id: op.input.category_id ?? op.original.category_id })
     }
     return items.sort(entryOrder)
   }, [query.data, mutations.pending, range])
@@ -80,19 +81,20 @@ export function CalendarPage({ date }: { date?: string }) {
   }
   function open(entry: Entry) {
     if (lockedIds.has(entry.id) || !ready()) return
+    document.querySelector<HTMLElement>(`[data-entry-id="${CSS.escape(entry.id)}"]`)?.focus({ preventScroll: true })
     setEditor({ key: crypto.randomUUID(), input: entry, original: entry, zone })
   }
   function create(input?: EntryInput) {
     if (mutations.pending.create) { setNotice('Check the previous save before creating another entry.'); return }
     if (!ready()) return
     const start = Math.max(range.from, Math.min(range.to - 900, day === today(zone) ? Math.floor(Date.now() / 1000 / 300) * 300 : range.from + 9 * 3600))
-    const initial = { ...(input ?? { title: '', start_time: start, end_time: start + 900 }), category_id: input?.category_id ?? preferredCategoryId(categories.data ?? []) }
+    const initial = { description: '', ...(input ?? { title: '', start_time: start, end_time: start + 900 }), category_id: input?.category_id ?? preferredCategoryId(categories.data ?? []) }
     setDraftPreview(initial)
     setEditor({ key: crypto.randomUUID(), input: initial, zone })
   }
   const onDate = (date: string) => { void navigate({ to: '/calendar', search: { date } }) }
   async function replace(entry: Entry, target: EntryInput) {
-    try { await mutations.submit('replace', target, entry) }
+    try { await mutations.submit('replace', { title: target.title, category_id: target.category_id, start_time: target.start_time, end_time: target.end_time }, entry) }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save changes.') }
   }
   const heading = new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
@@ -109,7 +111,7 @@ export function CalendarPage({ date }: { date?: string }) {
     <aside className={styles.workspace} data-editing={!!editor} data-todos-expanded={todosExpanded} aria-label="Todos and entry details">
       <TodoPanel expanded={todosExpanded} onToggle={() => setTodosExpanded(value => !value)} online={online} />
       {editor && <div className={styles.details}>
-        <EntryEditor key={editor.key} session={editor} mutations={mutations} online={online} notify={setNotice} onClose={closeEditor} onPreviewChange={setDraftPreview} closeGuard={closeGuard} onManageCategories={manageCategories} />
+        <EntrySheet existing={!!editor.original} key={editor.key} closeGuard={closeGuard} onClose={closeEditor}><EntryEditor session={editor} mutations={mutations} online={online} onClose={closeEditor} onPreviewChange={setDraftPreview} closeGuard={closeGuard} onManageCategories={manageCategories} /></EntrySheet>
       </div>}
     </aside>
     <CategoryManager open={categoriesOpen} onClose={() => { setCategoriesOpen(false); categoryCreated.current = undefined }} onCreated={category => categoryCreated.current?.(category)} online={online} />
@@ -118,7 +120,7 @@ export function CalendarPage({ date }: { date?: string }) {
       {categories.isError && <div className="notification-card notification-error" role="alert"><strong>Could not refresh categories</strong><p>Your entries are still available.</p><button className="text-button" disabled={!online || categories.isFetching} onClick={() => void categories.refetch()}>Retry categories</button></div>}
       {query.isError && <div className="notification-card notification-error" role="alert"><strong><AlertCircle size={14} /> Could not load entries</strong><p>{query.error.message}</p><button className="text-button" disabled={!online || query.isFetching} onClick={() => { void query.refetch(); void categories.refetch() }}>Try again</button></div>}
       {unsupported.length > 0 && <div className="notification-card notification-error" role="alert">{unsupported.length} entries have dates outside the editor's supported range. Their data has not been changed.</div>}
-      {pending.map(op => <OperationStatus key={op.key} operation={op} mutations={mutations} online={online} />)}
+      {pending.filter(op => !editor || op.key !== (editor.original?.id ?? 'create')).map(op => <OperationStatus key={op.key} operation={op} mutations={mutations} online={online} />)}
     </NotificationViewport>
   </div>
 }

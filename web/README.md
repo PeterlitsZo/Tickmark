@@ -120,3 +120,15 @@ See `../plans/20261105/03/` for the original concepts, updated design decisions,
 `useTodoInteraction` coordinates focus and pointer gestures once per panel. Focus determines the edited task; pointer gestures postpone layout changes until release, while keyboard focus updates immediately. Leaving a task flushes its draft independently of visual expansion. Rows do not install global event listeners or maintain competing edit state.
 
 `TodoTextField` keeps a stable native textarea for browser selection and uses a hidden text mirror for intrinsic CSS sizing, including trailing newlines. There is no zero-height measurement, ResizeObserver, pointer-down cancellation, or click-coordinate caret reconstruction. A field collapses its previous selection only after blur, and selected-text drag-and-drop is disabled without intercepting selection gestures. `TodoEditor` renders fields and task actions; `TodoFeedback` renders exceptional save/recovery feedback; `TodoSheet` owns the mobile dialog lifecycle. The existing draft store continues to own persistence, throttling, and recovery.
+
+## Entry descriptions
+
+Entries have an optional plain-text Description below Title. Save entry / Save changes explicitly saves the whole form, including whitespace and line breaks; clearing Description sends an empty string. Enter in Description inserts a newline, while Enter in Title saves. Unsaved descriptions participate in the existing Cancel, Escape, record-switching, navigation and unload guards. Todos retain their independent inline autosave flow.
+
+The limit is 10,000 Unicode scalar values (emoji count as one scalar where applicable), counted with `Array.from`. Oversized input is retained for correction and cannot be submitted. Descriptions are shown in the editor, without changing calendar block heights.
+
+Below 760px, the same editor becomes a full-height modal dialog with a scrollable field area, fixed actions, focus containment/restoration, safe-area padding and VisualViewport sizing. Category management opens above it without resetting the draft. Errors and pending-save recovery controls remain inside the editor, including on narrow screens.
+
+This frontend requires the entry-description API and migration `0005_add_time_entry_description.sql`. Every returned entry must include a string `description`; missing or invalid fields are protocol errors. An unreadable write response remains uncertain until checked or explicitly retried. Time-only drag/resize requests omit description so the server atomically preserves the latest value. Confirmation compares descriptions only when they were sent; create candidates must also match the expected description exactly.
+
+See [validation results](VALIDATION.md#entry-descriptions-and-responsive-editor--2026-11-06) for local integration checks, screenshots and device coverage limits.

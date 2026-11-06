@@ -16,10 +16,8 @@
 @media (max-width: 759px) {
   .layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
   .workspace { border-left: 0; border-top: 1px solid var(--line-strong); height: min(38dvh, 360px); padding-bottom: env(safe-area-inset-bottom); }
-  .workspace[data-editing=true] { height: min(64dvh, 640px); }
-  .workspace[data-editing=true] > section[data-expanded=true] { min-height: 150px; }
   .workspace[data-todos-expanded=false]:not([data-editing=true]) { height: auto; }
-  .details { flex-basis: 66%; min-height: 240px; }
+  .details { flex: 0; min-height: 0; border: 0; }
 }
 
 @media (max-width: 379px) {

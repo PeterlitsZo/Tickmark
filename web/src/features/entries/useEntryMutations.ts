@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ApiError, entriesApi, type Entry, type EntryInput } from '../../api/entries'
 import { categoriesKey } from '../categories/categoriesQueries'
 import { rememberCreatedCategory } from '../categories/categoryPreference'
-import { commitEntry, readReplacement, sameInput } from './entriesQueries'
+import { commitEntry, readReplacement, sameInput, matchesReplacement } from './entriesQueries'
 
 export type Operation = {
   key: string
@@ -64,8 +64,8 @@ export function useEntryMutations(notify: (message: string) => void) {
   async function submit(kind: Operation['kind'], input?: EntryInput, original?: Entry) {
     const key = original?.id ?? 'create'
     if (current.current[key]) return undefined
-    if (kind === 'replace' && sameInput(input!, original!)) return original
-    return send({ key, kind, input, original, status: 'saving', message: '' })
+    if (kind === 'replace' && matchesReplacement(original!, input!)) return original
+    return send({ key, kind, input: input ? { ...input } : undefined, original, status: 'saving', message: '' })
   }
   async function check(key: string) {
     const op = current.current[key]
@@ -82,7 +82,7 @@ export function useEntryMutations(notify: (message: string) => void) {
         if (op.kind === 'create') {
           // Without an explicit category, the server's assigned category is unknown.
           // Never confirm a default-category create using title and time alone.
-          const match = target.category_id ? result.items.find(e => sameInput(e, target)) : undefined
+          const match = target.category_id ? result.items.find(e => sameInput(e, { ...target, description: target.description ?? '' })) : undefined
           publish(key, { ...op, status: 'uncertain', match, message: !target.category_id ? 'The service assigned the category, so this save cannot be matched safely. Review the timeline before retrying; retrying may create a duplicate.' : match ? 'A matching entry exists. It may be this save or an earlier identical entry. Use it to finish without creating another.' : 'No matching entry was found yet. A delayed save may still arrive. Check again before choosing to retry.' })
         } else {
           const found = result.items.some(e => e.id === op.original!.id)

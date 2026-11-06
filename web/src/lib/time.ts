@@ -63,6 +63,7 @@ export function entryTime(entry: EntryInput, zone: string) {
 export const trimTitle = (title: string) => title.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '')
 export function validateInput(input: EntryInput): Record<string, string> {
   const errors: Record<string, string> = {}
+  if (Array.from(input.description ?? '').length > 10000) errors.description = 'Use 10,000 characters or fewer.'
   if (!trimTitle(input.title) || Array.from(trimTitle(input.title)).length > 500) errors.title = 'Use a title between 1 and 500 characters.'
   if (!Number.isSafeInteger(input.start_time) || input.start_time < 0) errors.start_time = 'Choose a valid start time.'
   if (!Number.isSafeInteger(input.end_time) || input.end_time < 0) errors.end_time = 'Choose a valid end time.'

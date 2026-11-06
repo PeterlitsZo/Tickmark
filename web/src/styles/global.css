@@ -173,3 +173,19 @@ h1, .hour-label, .field input, .day-cell { font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: no-preference) {
   .primary, .secondary, .icon-button, .day-cell { transition: background-color 150ms, color 150ms, border-color 150ms; }
 }
+
+.entry-description > label { display: flex; justify-content: space-between; }
+.entry-description > label span { font-weight: 400; color: var(--muted); }
+.entry-description textarea { display: block; min-height: 112px; max-height: 240px; resize: vertical; overflow: auto; overflow-wrap: anywhere; line-height: 1.5; }
+.entry-description textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.entry-description textarea[aria-invalid=true]:focus { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+.entry-description .field-meta { text-align: left; }
+.entry-sheet { position: static; margin: 0; padding: 0; border: 0; width: 100%; max-width: none; max-height: none; min-height: 0; color: var(--ink); background: var(--canvas); flex: 1; }
+.entry-sheet[open] { display: flex; flex-direction: column; }
+@media (max-width: 759px) {
+  .entry-sheet { position: fixed; inset: var(--entry-viewport-top, 0px) 0 auto; height: var(--entry-viewport-height, 100dvh); width: 100%; overflow: hidden; }
+  .entry-sheet::backdrop { background: var(--canvas); }
+  .entry-sheet .entry-form input, .entry-sheet .entry-form textarea, .entry-sheet .entry-form select { font-size: 16px; }
+  .entry-sheet .entry-description textarea { min-height: 128px; }
+  .entry-sheet .editor-actions { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+}

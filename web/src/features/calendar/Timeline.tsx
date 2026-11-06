@@ -31,7 +31,7 @@ export function Timeline({ day, range, zone, entries, lockedIds, selectedId, dra
     for (let t = range.from; t < range.to; t += 3600) result.push({ t, label: clockTime(t, zone) })
     return result.map(tick => ({ ...tick, repeated: result.filter(other => other.label === tick.label).length > 1 }))
   }, [range.from, range.to, zone])
-  const display = preview?.entry ? entries.map(e => e.id === preview.entry!.id ? { ...e, ...preview.input, category_id: preview.input.category_id ?? e.category_id } : e) : entries
+  const display = preview?.entry ? entries.map(e => e.id === preview.entry!.id ? { ...e, ...preview.input, description: preview.input.description ?? e.description, category_id: preview.input.category_id ?? e.category_id } : e) : entries
   const selection = preview ? (preview.entry ? null : preview.input) : draft
   const selectionStart = selection ? Math.max(selection.start_time, range.from) : 0
   const selectionEnd = selection ? Math.min(selection.end_time, range.to) : 0
@@ -205,7 +205,7 @@ const EntryBlock = memo(function EntryBlock({ entry, top, height, column, column
     event.currentTarget.style.cursor = locked ? 'default' : pointerMode(event) === 'move' ? 'grab' : 'ns-resize'
   }
   return <div data-category-color={categoryTone(category?.color)} className={`time-block ${height < 60 ? 'block-small' : ''} ${height < 39 ? 'block-tiny' : ''} ${height > 0 && height < 14 ? 'block-sliver' : ''} ${selected ? 'is-selected' : ''} ${locked ? 'is-pending' : ''} ${entry.start_time === entry.end_time ? 'is-point' : ''}`} onPointerDown={event => event.stopPropagation()} style={{ top, height, left: `calc(${column / columns * 100}% + 3px)`, width: `calc(${100 / columns}% - 8px)` }}>
-    <button className="block-content" disabled={locked} onPointerEnter={updateCursor} onPointerMove={updateCursor} onPointerLeave={event => { event.currentTarget.style.cursor = '' }} onPointerDown={event => { updateCursor(event); actions.current.down(event, pointerMode(event), entry) }} onClick={event => { if (event.detail === 0 && !actions.current.suppressClick.current) actions.current.open(entry) }} title={`${entry.title} · ${time} · ${categoryName}`} aria-label={`${entry.title}, ${time}, ${duration(entry.end_time - entry.start_time)}, ${categoryName}`}>
+    <button className="block-content" data-entry-id={entry.id} disabled={locked} onPointerEnter={updateCursor} onPointerMove={updateCursor} onPointerLeave={event => { event.currentTarget.style.cursor = '' }} onPointerDown={event => { updateCursor(event); actions.current.down(event, pointerMode(event), entry) }} onClick={event => { if (event.detail === 0 && !actions.current.suppressClick.current) actions.current.open(entry) }} title={`${entry.title} · ${time} · ${categoryName}`} aria-label={`${entry.title}, ${time}, ${duration(entry.end_time - entry.start_time)}, ${categoryName}`}>
       <BlockHeading title={entry.title} categoryName={categoryName} /><span>{time}</span>{locked && <small>Awaiting confirmation</small>}
     </button>
   </div>
