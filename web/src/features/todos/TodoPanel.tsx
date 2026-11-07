@@ -39,7 +39,9 @@ export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; o
   useEffect(() => { store.setOnline(online) }, [store, online])
   const dirty = [...store.drafts.values()].some(needsAttention)
   useBlocker({
-    shouldBlockFn: async () => {
+    shouldBlockFn: async ({ current, next }) => {
+      // Browsing dates leaves the same todo workspace mounted.
+      if (current.pathname === '/calendar' && next.pathname === '/calendar') return false
       const saved = await store.flushAll()
       return ((!saved || title.length > 0 || busy || uncertain) && !window.confirm('Leave with unsaved changes? Existing todo drafts are kept locally when browser storage is available. A new todo has not been saved.'))
     },

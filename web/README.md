@@ -1,6 +1,6 @@
 # Tickmark web
 
-A React browser client for recording completed activities and managing todos. The single-day calendar supports pointer selection, moving and resizing entries, keyboard-accessible editing, and an inline editor alongside a persistent todo list. It uses TanStack Router, Query and Form, TypeScript, Vite, and the existing Rust API.
+A React browser client for recording completed activities and managing todos. The horizontally scrollable calendar shows four days on desktop and one readable day on narrow screens. It supports pointer selection, moving and resizing entries, keyboard-accessible editing, and an inline editor alongside a persistent todo list. It uses TanStack Router, Query and Form, TypeScript, Vite, and the existing Rust API.
 
 ## Preview with the existing service
 
@@ -65,12 +65,15 @@ The screenshots in `docs/refinement/` document the earlier calendar layout; see 
 
 ## Interaction and data rules
 
-- Use Today, previous/next day, or the desktop month navigator. The selected date is stored in the URL and restored by browser history.
+- Use Shift + mouse wheel, horizontal trackpad scrolling, or touch swipes to browse past and future dates. Ordinary wheel input scrolls time vertically. The calendar keeps a shared vertical position as dates change without snapping after horizontal scrolling settles. Scrollbars are hidden.
+- Desktop displays four equal day columns; below 760px it displays one. Date headers stay at the top, and the time gutter stays on the left. Only the visible days and four buffer days on each side are mounted. Each local day has its own cached query, loading state and retry action.
+- Today, previous/next day and the month navigator move the visible date window. The URL stores the first visible day. Scrolling replaces that history entry; explicit navigation creates history entries. At the upper supported date limit, the desktop window ends on 9999-12-30. Resizing preserves the date anchor.
+- Date browsing keeps entry drafts, pending saves and todo input mounted. The Add entry button uses the first visible day; clicking or selecting a column uses that column’s date. Leaving the calendar page still uses the existing unsaved-change guards.
 - Click Add entry or drag an empty time range. Mouse selections snap to five minutes; a click creates a fifteen-minute draft. Touch scrolling remains available; long press activates selection where the browser permits it. The Add button and editor are always alternatives to gestures.
-- Click an entry to edit. Drag its body to move it, or its top/bottom handle to resize it. Moving preserves duration and seconds. Cross-day fragments are display-only; only actual endpoints have handles. A changed drag writes once on release. Escape, pointer cancellation and window blur cancel a drag.
+- Click an entry to edit. Drag its body to move it, or its top/bottom handle to resize it. Moving preserves duration and seconds. Cross-day fragments are display-only; only actual endpoints have handles. A changed drag writes once on release. Horizontal browsing is held while dragging so the day cannot change underneath the gesture. Cross-column dragging is not supported. Escape, pointer cancellation and window blur cancel a drag.
 - Keyboard users can focus any entry with Tab, open it with Enter, and edit its times without dragging. Short entries retain accessible labels and hover titles.
-- Save or Enter in the title field submits the form; IME confirmation does not submit. Closing a changed draft asks before discarding it. Delete requires confirmation and is permanent. Browser navigation is blocked for dirty drafts; browser unload prompts are subject to browser restrictions.
-- All times use the browser's IANA time zone, shown in the interface. Day boundaries support DST. Repeated local hours offer an explicit UTC offset choice; nonexistent times are rejected. Title-only edits preserve exact timestamps.
+- Save or Enter in the title field submits the form; IME confirmation does not submit. Closing a changed draft asks before discarding it. Delete requires confirmation and is permanent. Navigation away from the calendar is blocked for dirty drafts; browser unload prompts are subject to browser restrictions.
+- All times use the browser's IANA time zone, shown in the interface. Day boundaries support DST. Clock-change days retain their actual 23/25-hour duration, show their own local hour labels with UTC offsets, and use elapsed-time geometry; adjacent normal days retain their ordinary hour scale. Repeated local hours offer an explicit UTC offset choice; nonexistent times are rejected. Title-only edits preserve exact timestamps.
 - Block height follows the exact clipped duration. Only actual time intersections create overlap columns; touching endpoints do not overlap. Very short blocks expose their full label on hover and through accessible names, rather than inflating their displayed duration.
 - Overlaps and zero-duration records are valid. IDs stay strings. Titles use Unicode scalar counting and server-compatible whitespace trimming.
 - The query cache is memory-only. Reads refresh when stale on window focus/reconnection; Refresh is also available. There is no live subscription, persisted offline cache or offline write queue.
@@ -132,3 +135,7 @@ Below 760px, the same editor becomes a full-height modal dialog with a scrollabl
 This frontend requires the entry-description API and migration `0005_add_time_entry_description.sql`. Every returned entry must include a string `description`; missing or invalid fields are protocol errors. An unreadable write response remains uncertain until checked or explicitly retried. Time-only drag/resize requests omit description so the server atomically preserves the latest value. Confirmation compares descriptions only when they were sent; create candidates must also match the expected description exactly.
 
 See [validation results](VALIDATION.md#entry-descriptions-and-responsive-editor--2026-11-06) for local integration checks, screenshots and device coverage limits.
+
+## Four-day calendar verification
+
+See `../plans/20261107/01/` for the design, implementation screenshots and manual verification record. No automated test files or test dependencies were added.

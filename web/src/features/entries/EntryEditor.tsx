@@ -94,7 +94,9 @@ export function EntryEditor({ session, mutations, online, onClose, onPreviewChan
   }
   closeGuard.current = canClose
   useBlocker({
-    shouldBlockFn: () => {
+    shouldBlockFn: ({ current, next }) => {
+      // Date browsing keeps this mounted editor and its unsaved form intact.
+      if (current.pathname === '/calendar' && next.pathname === '/calendar') return false
       if (!canClose()) return true
       guard.current.onClose()
       return false

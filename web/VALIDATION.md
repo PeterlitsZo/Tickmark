@@ -341,3 +341,25 @@ Manual Chromium interactions used a freshly migrated, isolated local D1 database
 Implementation screenshots: [desktop](docs/validation/entry-description/desktop.png), [mobile](docs/validation/entry-description/mobile.png), [200% equivalent viewport](docs/validation/entry-description/zoom-equivalent.png). Compared with the plan's concept: the implementation retains the existing calendar and Todos layout, places Description immediately below Title, and uses the specified labels, bounded native textarea, green focus and explicit footer actions.
 
 Coverage limits: these are desktop Chromium and viewport simulations, not physical iOS/Android soft-keyboard or operating-system IME verification. The zoom check uses equivalent CSS dimensions, not native browser zoom. VisualViewport handling is implemented, but real-device keyboard occlusion, assistive-technology announcements and Safari/Firefox remain unverified. Pending entry operations remain memory-only with unload protection. The description API/migration must be deployed with this client before production use.
+
+## Four-day calendar and horizontal browsing — 2026-11-07
+
+Implemented the four-day desktop calendar with a shared scroll container and a single readable day below 760px. Verified against Vite on port 5187 and the isolated local Worker on port 8791. Existing local migrations were applied for this environment; the feature needs no new API, schema or migration.
+
+- `npm --prefix web run lint`, `npm --prefix web run build`, and `git diff --check` passed. Build includes route generation and TypeScript checking; the existing route-generator circular-dependency warning remains non-fatal. No automated test files or test dependencies were added.
+- Chromium: ordinary vertical wheel, Shift + wheel, native horizontal wheel, native scrollbar dragging, line/page wheel units and Ctrl-wheel exclusion. Browsed from November 2026 into January 2027 and back: 12 mounted dates, stable vertical position and no additional history entries.
+- Verified Today, mini-calendar selection, previous/next day, history back/forward, reload, invalid-date correction and supported-date limits. Narrow layouts retain nine dates; resizing between 320px, 390px, 1440px and 1800px preserves the date anchor without document overflow.
+- Created drafts in all four columns, edited and saved an event in each, moved each by 30 minutes and resized each by 15 minutes. Durations/descriptions survived moves. Horizontal browsing stayed locked during active dragging. An outstanding PUT stayed locked across date navigation and unlocked on confirmation.
+- Entry drafts and unsaved todo input survive date browsing. A selected column can be recycled and restored without resetting the manually chosen vertical position. Cross-midnight fragments preserve their shared ID and return focus to the fragment actually opened; overlapping events retain per-day lanes.
+- A failed query affected only its day; Retry recovered it while other days stayed populated. Offline browsing retained cached data and marked uncached dates; reconnection recovered them.
+- America/New_York fall and spring transitions retained 25/23-hour geometry, explicit repeated-hour offsets and skipped nonexistent hours. Recycling the 25-hour column did not clamp the vertical position at the bottom.
+- Chromium touch emulation: horizontal swipe changed date without opening an editor; long press followed by a drag created the expected same-day range. WebKit: Shift + wheel and desktop-to-narrow resizing passed. No page errors were observed in the main Chromium session.
+
+Implementation screenshots and detailed observations are in `../plans/20261107/01/validation.md`, including desktop, narrow, touch, WebKit and DST captures. That directory is already ignored by the repository. Physical touch hardware, native OS gesture settings and screen-reader announcements were not exercised. The earlier entry-description note about date-navigation discard prompts is superseded: date-only navigation now preserves both entry and todo drafts; leaving the calendar keeps the original guards.
+
+### Calendar visual refinements
+
+- Removed the scroll hint and native scrollbars; reduced the date header to 40px and softened grid lines.
+- Visible dates share a continuous pale range highlight without emphasizing the first day; today retains its dot marker.
+- Removed idle date snapping and preserved fractional horizontal position through height-only viewport changes.
+- Manually verified Shift + wheel, stable vertical position, height resize, date recycling, and mobile layout in Chromium.
