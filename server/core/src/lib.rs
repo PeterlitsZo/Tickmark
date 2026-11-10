@@ -4,7 +4,11 @@ mod todo;
 pub use category::{
     Category, CategoryColor, CategoryRepository, CategoryService, CreateCategory, UpdateCategory,
 };
+mod saved_todo_filter;
 mod todo_filter;
+pub use saved_todo_filter::{
+    CreateTodoFilter, SavedTodoFilter, TodoFilterRepository, TodoFilterService, UpdateTodoFilter,
+};
 
 use std::fmt;
 pub use todo::{CreateTodo, Todo, TodoRepository, TodoService, TodoStatus, UpdateTodo};
@@ -45,6 +49,7 @@ pub enum Error {
     InvalidTimeRange,
     NotFound,
     TodoNotFound,
+    TodoFilterNotFound,
     CategoryNotFound,
     CategoryInUse,
     InvalidFilter(&'static str),
@@ -59,6 +64,7 @@ impl fmt::Display for Error {
             Self::NotFound => f.write_str("Entry not found"),
             Self::CategoryNotFound => f.write_str("Category not found"),
             Self::CategoryInUse => f.write_str("Category is in use"),
+            Self::TodoFilterNotFound => f.write_str("Todo filter not found"),
             Self::TodoNotFound => f.write_str("Todo not found"),
             Self::InvalidFilter(message) => write!(f, "Invalid filter: {message}"),
             Self::Storage(message) => write!(f, "Storage failure: {message}"),

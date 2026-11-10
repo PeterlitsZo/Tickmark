@@ -92,13 +92,15 @@ export class TodoDraftStore {
     } catch { this.storageFailed() }
   }
 
-  ingest(items: Todo[]) {
+  isRemoved(id: string) { return this.removed.has(id) }
+
+  ingest(items: Todo[], complete = true) {
     const present = new Map(items.map(todo => [todo.id, todo]))
     for (const [id, draft] of this.drafts) {
       if (draft.flight || draft.deleting || draft.checking) continue
       const remote = present.get(id)
       if (!remote) {
-        if (needsAttention(draft)) { draft.missing = true; draft.error = 'This todo no longer exists. Copy your draft before dismissing it.'; this.cancelTimer(draft) }
+        if (complete && needsAttention(draft)) { draft.missing = true; draft.error = 'This todo no longer exists. Copy your draft before dismissing it.'; this.cancelTimer(draft) }
         continue
       }
       draft.remote = remote

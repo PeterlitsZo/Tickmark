@@ -1,4 +1,4 @@
-import { createContext, useContext, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from 'react-native';
 import { API_ORIGIN } from '../../api/client';
@@ -6,6 +6,7 @@ import { todosApi, type Todo } from '../../api/todos';
 import { categoriesApi, isCategoryColor, type Category } from '../../api/categories';
 import { useEntries } from '../entries/EntriesProvider';
 import { categoriesKey } from '../categories/categoriesQueries';
+import { useTodoFilters } from '../todos/useTodoFilters';
 import { useWriteGuard } from './useWriteGuard';
 
 const todosKey = ['todos', API_ORIGIN] as const;
@@ -13,6 +14,11 @@ function useWorkspaceState() {
   const { online, categories } = useEntries();
   const client = useQueryClient();
   const todos = useQuery({ queryKey: todosKey, queryFn: ({ signal }) => todosApi.list('ALL', signal), retry: false });
+  const filterState = useTodoFilters(online);
+  const [todoNotice, setTodoNotice] = useState('');
+  const [addedOutside, setAddedOutside] = useState<Todo | null>(null);
+  const filteredTodos = useQuery({ queryKey: ['todo-filter-results', API_ORIGIN, filterState.selected?.filter_expr], queryFn: ({ signal }) => todosApi.listExpression(filterState.selected!.filter_expr, signal), enabled: online && !!filterState.selected, retry: false, staleTime: 0, refetchOnWindowFocus: 'always', refetchOnReconnect: 'always' });
+  useEffect(() => { void client.invalidateQueries({ queryKey: ['todo-filter-results', API_ORIGIN] }); }, [client, todos.dataUpdatedAt]);
   const refreshTodos = async () => { const result = await todos.refetch(); if (result.error) throw result.error; };
   const refreshCategories = async () => { const result = await categories.refetch(); if (result.error) throw result.error; };
   const todoWrite = useWriteGuard(online, refreshTodos);
@@ -41,7 +47,17 @@ function useWorkspaceState() {
     await todoWrite.run(async () => {
       const saved = todoEdit ? await todosApi.patch(todoEdit.id, { title }) : await todosApi.create(title);
       await commitTodo(saved);
-      if (todoEdit) setTodoEdit(null); else setTodoTitle('');
+      if (todoEdit) setTodoEdit(null);
+      else {
+        setTodoTitle(''); setTodoNotice('Todo added.'); setAddedOutside(null);
+        if (filterState.selected) {
+          try {
+            const matches = await todosApi.listExpression(filterState.selected.filter_expr);
+            client.setQueryData(['todo-filter-results', API_ORIGIN, filterState.selected.filter_expr], matches);
+            if (!matches.some(todo => todo.id === saved.id)) { setTodoNotice('Todo added. It does not match this filter.'); setAddedOutside(saved); }
+          } catch { setTodoNotice('Todo added. Could not refresh this filter.'); setAddedOutside(saved); }
+        }
+      }
     });
   }
   async function toggleTodo(todo: Todo) {
@@ -90,7 +106,7 @@ function useWorkspaceState() {
       }); } },
     ]);
   }
-  return { online, todos, refreshTodos, todoWrite, todoTitle, setTodoTitle, todoEdit, setTodoEdit, completedOpen, setCompletedOpen, saveTodoScroll: (offset: number) => { todoScroll.current = offset; }, readTodoScroll: () => todoScroll.current, saveTodo, toggleTodo, deleteTodo,
+  return { filterState, filteredTodos, todoNotice, setTodoNotice, addedOutside, setAddedOutside, online, todos, refreshTodos, todoWrite, todoTitle, setTodoTitle, todoEdit, setTodoEdit, completedOpen, setCompletedOpen, saveTodoScroll: (offset: number) => { todoScroll.current = offset; }, readTodoScroll: () => todoScroll.current, saveTodo, toggleTodo, deleteTodo,
     categories, refreshCategories, categoryWrite, categoryEdit, setCategoryEdit, saveCategory, deleteCategory };
 }
 const Context = createContext<ReturnType<typeof useWorkspaceState> | null>(null);

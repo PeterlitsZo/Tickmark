@@ -17,7 +17,12 @@ async function write(path: string, method: string, input: object) {
 }
 export const todosApi = {
   async list(filter: TodoFilter, signal?: AbortSignal): Promise<Todo[]> {
-    const expression = filter === 'ALL' ? '' : btoa(`status = '${filter}'`).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    return todosApi.listExpression(filter === 'ALL' ? '' : `status = '${filter}'`, signal)
+  },
+  async listExpression(filter: string, signal?: AbortSignal): Promise<Todo[]> {
+    const bytes = new TextEncoder().encode(filter)
+    if (bytes.length > 4096) throw new ApiError('Use a filter expression of 4096 UTF-8 bytes or fewer.', 'INVALID_FILTER')
+    const expression = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
     const json = await request(`/todos${expression ? `?filter=${expression}` : ''}`, 'GET', undefined, signal)
     if (!object(json) || !Array.isArray(json.items)) throw new ApiError('The service returned an invalid list.', 'PROTOCOL')
     return json.items.map(parseTodo)

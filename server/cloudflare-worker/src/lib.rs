@@ -2,6 +2,8 @@ mod category_api;
 mod category_repository;
 mod repository;
 mod todo_api;
+mod todo_filter_api;
+mod todo_filter_repository;
 mod todo_repository;
 
 use futures_util::StreamExt;
@@ -194,6 +196,12 @@ impl From<CoreError> for ApiError {
                 "CATEGORY_IN_USE",
                 "The category is referenced by time entries.",
             ),
+            CoreError::TodoFilterNotFound => Self::new(
+                404,
+                "NOT_FOUND",
+                "TODO_FILTER_NOT_FOUND",
+                "The requested filter does not exist.",
+            ),
             CoreError::TodoNotFound => Self::new(
                 404,
                 "NOT_FOUND",
@@ -316,6 +324,9 @@ async fn handle(mut req: Request, env: Env) -> Result<Response, ApiError> {
     let path = req.path();
     if path == category_api::COLLECTION || path.starts_with("/api/v1/categories/") {
         return category_api::handle(req, env).await;
+    }
+    if path == todo_filter_api::COLLECTION || path.starts_with("/api/v1/todo-filters/") {
+        return todo_filter_api::handle(req, env).await;
     }
     if path == todo_api::COLLECTION || path.starts_with("/api/v1/todos/") {
         return todo_api::handle(req, env).await;

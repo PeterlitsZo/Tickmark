@@ -1,5 +1,5 @@
 use filter_expr::FilterExpr;
-use filter_expr_evaler::{FilterExprEvaler, simple_context};
+use filter_expr_evaler::{CompiledFilterExpr, FilterExprEvaler, simple_context};
 
 use crate::{Error, Todo};
 
@@ -21,6 +21,7 @@ impl TodoFilter {
         if self.0.is_empty() || items.is_empty() {
             return Ok(items);
         }
+        let compiled = CompiledFilterExpr::compile(&self.0);
         let evaluator = FilterExprEvaler::new();
         let mut matches = Vec::new();
         for todo in items {
@@ -32,7 +33,7 @@ impl TodoFilter {
                 "created_at": todo.created_at,
                 "updated_at": todo.updated_at,
             };
-            if evaluator.eval(&self.0, &context).await.map_err(|_| {
+            if evaluator.run(&compiled, &context).await.map_err(|_| {
                 Error::InvalidFilter("Filter must evaluate to a boolean without errors.")
             })? {
                 matches.push(todo);

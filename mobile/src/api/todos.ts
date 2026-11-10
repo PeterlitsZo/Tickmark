@@ -1,3 +1,4 @@
+import { encodeFilter } from '../../../shared/todoFilters'
 import { ApiError, object, request } from './client'
 
 export type TodoStatus = 'OPEN' | 'COMPLETED'
@@ -16,9 +17,13 @@ async function write(path: string, method: string, input: object) {
 }
 export const todosApi = {
   async list(filter: TodoFilter, signal?: AbortSignal): Promise<Todo[]> {
-    const json = await request('/todos', 'GET', undefined, signal)
+    return todosApi.listExpression(filter === 'ALL' ? '' : `status = '${filter}'`, signal)
+  },
+  async listExpression(expression: string, signal?: AbortSignal): Promise<Todo[]> {
+    const encoded = encodeFilter(expression)
+    const json = await request(`/todos${encoded ? `?filter=${encoded}` : ''}`, 'GET', undefined, signal)
     if (!object(json) || !Array.isArray(json.items)) throw new ApiError('The service returned an invalid list.', 'PROTOCOL')
-    return json.items.map(parseTodo).filter(todo => filter === "ALL" || todo.status === filter)
+    return json.items.map(parseTodo)
   },
   create: (title: string) => write('/todos', 'POST', { title }),
   patch: (id: string, input: { title?: string; status?: TodoStatus }) => write(`/todos/${encodeURIComponent(id)}`, 'PATCH', input),

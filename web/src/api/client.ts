@@ -38,6 +38,7 @@ export async function request(path: string, method: string, body?: object, signa
         : reason === 'ENTRY_NOT_FOUND' ? 'This entry no longer exists. It may have been deleted on another device.'
         : reason === 'CATEGORY_NOT_FOUND' ? 'This category no longer exists. Refresh and choose another category.'
         : reason === 'CATEGORY_IN_USE' ? 'This category is used by time entries and cannot be deleted.'
+        : reason === 'TODO_FILTER_NOT_FOUND' ? 'This filter no longer exists. Refresh and choose another tab.'
         : reason === 'TODO_NOT_FOUND' ? 'This todo no longer exists. Refresh the list.'
         : reason === 'INVALID_TIME_RANGE' ? 'The end must be on or after the start.'
         : response.status === 400 ? 'Check the highlighted fields and try again.'

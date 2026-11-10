@@ -337,7 +337,7 @@ matches(title, '^Review')
 ```
 
 Expressions use the syntax and built-ins from `filter-expr` and
-`filter-expr-evaler` **0.4.1**, directly from crates.io.
+`filter-expr-evaler` **0.6.0**, directly from crates.io.
 Strings are case sensitive: `status = 'open'` matches nothing. A string method
 such as `title.trim()` affects only that expression's result, never stored data.
 
@@ -495,3 +495,48 @@ the column or restore an old database during an ordinary application rollback.
 Entry lists include full descriptions for all matching records. Pagination and
 a separate detail endpoint are outside this change. See [validation](VALIDATION.md)
 for local-only verification; this document does not establish remote rollout.
+
+
+## Saved todo filters
+
+The Web and mobile clients share named filter tabs stored in D1. Apply migration
+`0006_create_todo_filters.sql` before using this feature. The built-in All tab is
+not stored. Each client remembers only its selected tab locally.
+
+| Method | Path | Result |
+| --- | --- | --- |
+| GET | `/api/v1/todo-filters` | `{ "items": [...] }`, ordered by position then ID |
+| POST | `/api/v1/todo-filters` | Create with `name` and `filter_expr`; 201 |
+| PATCH | `/api/v1/todo-filters/:id` | Update `name` and/or `filter_expr`; 200 |
+| DELETE | `/api/v1/todo-filters/:id` | Delete the configuration only; 204 |
+
+Responses contain `id` (decimal string), `name`, `filter_expr`, `position`,
+`created_at` and `updated_at`. Names are trimmed and accept 1–60 Unicode scalar
+values; duplicate names are allowed. Expressions are nonempty and limited to
+4096 UTF-8 bytes. Store and submit the original expression in JSON; Base64 is
+used only for the existing `/todos?filter=...` query protocol. Position is
+allocated in the insert statement and is not client-editable. Unknown fields,
+explicit nulls and query parameters are rejected. A missing configuration
+returns `TODO_FILTER_NOT_FOUND`. Expression errors identify `filter_expr`.
+
+Saving parses the expression and evaluates existing todos. An empty database
+cannot exercise per-item errors, and short-circuited branches or future data can
+still expose errors later. Query errors remain visible, with an editing path.
+Configuration edits use last-write-wins semantics. Requests with uncertain
+outcomes should be checked against the refreshed list before retrying.
+
+Both filter crates are pinned to 0.5.0. Each request compiles its expression once
+and reuses the compiled handle for all todos. The evaluator's `js` feature
+supports its time functions on Worker WASM. Existing timestamp fields remain
+integer Unix seconds. No expressions are interpolated into SQL.
+
+The clients refresh configurations on focus/reconnect and manual refresh.
+Filtered query caches are separate from the complete todo list used for draft
+recovery. Saving a todo refreshes matching results; unfinished edits stay
+accessible. Creating an unmatched todo provides a View todo action.
+
+The in-app Expression help contains examples, field types, syntax and
+troubleshooting. Its data-only content lives in `shared/todoFilters.ts` and is
+bundled into both clients, so reading help does not require a network request.
+The mobile bundle includes expo-clipboard; existing development clients need a
+new native build if they do not already include that module.
