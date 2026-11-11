@@ -9,24 +9,17 @@ import { TodoFilterTabs } from './TodoFilterTabs'
 import { useTodoFilters } from './useTodoFilters'
 import { filterError } from '../../api/todoFilters'
 import { TodoActions } from './TodoActions'
-import { TodoEditor } from './TodoEditor'
 import { TodoNotesPreview } from './TodoTextField'
 import { TodoSheet } from './TodoSheet'
 import { DraftFeedback, draftStatus } from './TodoFeedback'
-import { useTodoInteraction } from './useTodoInteraction'
 import { needsAttention, todoDraftStore, todoKey, validTitle } from './todoDrafts'
 import styles from './TodoPanel.module.css'
-
-const media = window.matchMedia('(max-width: 758px)')
-const subscribeMedia = (listener: () => void) => { media.addEventListener('change', listener); return () => media.removeEventListener('change', listener) }
 
 export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; onToggle: () => void; online: boolean }) {
   const client = useQueryClient()
   const store = useMemo(() => todoDraftStore(client), [client])
   useSyncExternalStore(store.subscribe, store.snapshot)
   const panel = useRef<HTMLElement>(null)
-  const interaction = useTodoInteraction(panel, store)
-  const narrow = useSyncExternalStore(subscribeMedia, () => media.matches)
   const filterState = useTodoFilters(online)
   const { selected } = filterState
   const selectedFilter = filterState.selectedId
@@ -65,8 +58,7 @@ export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; o
     store.ensure(todo)
     if (!expanded) onToggle()
     if (editing && editing.id !== todo.id) void store.flush(editing.id)
-    if (narrow) setEditing({ id: todo.id, field })
-    else interaction.focusTodo(todo.id, field)
+    setEditing({ id: todo.id, field })
   }
   async function exit() {
     const id = editing?.id
@@ -110,7 +102,7 @@ export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; o
   for (const [id, draft] of store.drafts) if (needsAttention(draft) || draft.missing) items.set(id, draft.base)
   const todos = [...items.values()].sort((a, b) => b.id.length - a.id.length || b.id.localeCompare(a.id))
   const matchingIds = new Set(filteredQuery.data?.map(todo => todo.id))
-  const retained = (todo: Todo) => todo.id === interaction.activeId || todo.id === editing?.id || !!(store.drafts.get(todo.id) && needsAttention(store.drafts.get(todo.id)!))
+  const retained = (todo: Todo) => todo.id === editing?.id || !!(store.drafts.get(todo.id) && needsAttention(store.drafts.get(todo.id)!))
   const visibleTodos = selected ? todos.filter(todo => matchingIds.has(todo.id) || retained(todo)) : todos
   const retainedCount = selected ? visibleTodos.filter(todo => !matchingIds.has(todo.id)).length : 0
   const countItems = selected ? filteredQuery.data : query.data
@@ -118,7 +110,7 @@ export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; o
   function selectFilter(id: string) { void store.flushAll(); filterState.select(id) }
   const active = editing ? store.drafts.get(editing.id) : undefined
 
-  return <section ref={panel} onFocusCapture={interaction.onFocusCapture} onBlurCapture={interaction.onBlurCapture} className={styles.panel} aria-label="Todos" data-expanded={expanded}>
+  return <section ref={panel} className={styles.panel} aria-label="Todos" data-expanded={expanded}>
     <header className="panel-heading">
       <h2 className={styles.headingTitle}><button className={styles.toggle} onClick={() => { void store.flushAll().then(onToggle) }} aria-expanded={expanded} aria-controls="todo-content"><span className={styles.headingText}>Todos</span><span>{countLabel}{!expanded && dirty ? ' · Unsaved changes' : ''}</span>{expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</button></h2>
       <button className={`icon-button ${query.isFetching ? 'refreshing' : ''}`} aria-label="Refresh todos" disabled={query.isFetching || !online} onClick={() => { void query.refetch(); void filterState.query.refetch(); if (selected) void filteredQuery.refetch() }}><RefreshCw size={16} /></button>
@@ -148,20 +140,19 @@ export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; o
           const current = draft
           const locked = !online || !!(draft && (draft.deleting || draft.checking || draft.recovery || draft.uncertain || draft.error || draft.missing || draft.pendingStatus))
           return <li key={todo.id} className={styles.item}>
-            {!narrow ? <TodoEditor draft={draft} store={store} active={interaction.activeId === todo.id} onStatus={() => void status(draft.base)} onDelete={() => void remove(draft.base)} /> : <>
+
               <div className={styles.itemRow}>
                 <button className={styles.check} role="checkbox" aria-checked={todo.status === 'COMPLETED'} aria-label={`${todo.status === 'COMPLETED' ? 'Reopen' : 'Complete'} ${current.title}`} disabled={locked} onClick={() => void status(todo)}><span>{todo.status === 'COMPLETED' && <Check size={10} />}</span></button>
-                <button data-todo-trigger={todo.id} className={`${styles.title} ${todo.status === 'COMPLETED' ? styles.completed : ''}`} onClick={() => void open(todo, 'title')}>{current.title || 'Untitled draft'}</button>
+                <button data-todo-trigger={todo.id} aria-haspopup="dialog" className={`${styles.title} ${todo.status === 'COMPLETED' ? styles.completed : ''}`} onClick={() => void open(todo, 'title')}>{current.title || 'Untitled draft'}</button>
                 <TodoActions title={current.title} disabled={!!draft?.deleting} onDelete={() => void remove(todo)} />
               </div>
               <TodoNotesPreview value={current.description} onOpen={() => void open(todo, 'description')} />
               {draft && draftStatus(draft, online) && <div className={styles.noteBody}><p className={styles.saveStatus} role="status">{draftStatus(draft, online)}</p><DraftFeedback draft={draft} store={store} /></div>}
-            </>}
           </li>
         })}</ul>
       </div>
     </div>
-    {narrow && active && editing && <TodoSheet key={editing.id} draft={active} store={store} initialField={editing.field} onStatus={() => void status(active.base)} onDelete={() => void remove(active.base)} onClose={() => void exit()} />}
+    {active && editing && <TodoSheet key={editing.id} draft={active} store={store} initialField={editing.field} onStatus={() => void status(active.base)} onDelete={() => void remove(active.base)} onClose={() => void exit()} />}
     <NotificationViewport notice={notice} onDismiss={dismissNotice} action={addedOutside ? { label: 'View todo', onClick: () => { selectFilter(''); void open(addedOutside, 'title'); dismissNotice() } } : completed ? { label: completed.description ? 'Edit note' : 'Add note', onClick: () => { void open(store.drafts.get(completed.id)?.base ?? completed, 'description'); dismissNotice() } } : undefined}>{busy && <p className="notification-card" role="status">Adding todo…</p>}</NotificationViewport>
   </section>
 }
