@@ -256,7 +256,7 @@ All routes remain unauthenticated, just like the existing entries API.
 | POST | `/api/v1/todos` | 201 with a new OPEN todo; body requires `title`, accepts optional `description` |
 | GET | `/api/v1/todos` | 200 with `{ "items": [...] }`, including all statuses |
 | GET | `/api/v1/todos?filter=...` | 200 with matching items, filtered in memory |
-| PATCH | `/api/v1/todos/:id` | 200 with the updated todo; provide at least one of `title`, `status`, `description` |
+| PATCH | `/api/v1/todos/:id` | 200 with the updated todo; provide at least one editable field |
 | DELETE | `/api/v1/todos/:id` | 204 without a body; deletion is permanent |
 
 A todo contains `id` (a decimal string), `title`, `description`, `status` (`OPEN` or `COMPLETED`),
@@ -276,8 +276,8 @@ clears it. Both OPEN and COMPLETED todos allow editing descriptions. Completing
 or reopening a todo preserves its description. This is one editable plain-text
 note, without comment history, authors, attachments, or HTML rendering.
 
-PATCH is partial: omitted fields stay unchanged, while explicit nulls, an empty
-object, unknown fields, and invalid types are rejected. Status values are case
+PATCH is partial: omitted fields stay unchanged. Only `expected_daily_minutes`
+accepts explicit null; an empty object, unknown fields, and invalid types are rejected. Status values are case
 sensitive. Set `{"status":"COMPLETED"}` to complete or `{"status":"OPEN"}` to
 reopen. Repeating identical values preserves `updated_at`; changing whitespace
 counts as an edit. Multiple edits in the same second can share a timestamp, so
@@ -292,6 +292,45 @@ signed 64-bit range. Updating or deleting a missing todo returns 404 with
 are limited to 128 KiB (131072 bytes), checked while streaming, independently of
 the scalar limit. Entries and categories retain their 16 KiB limit. Existing
 Content-Type handling, error envelopes, and `Cache-Control: no-store` apply.
+
+### Daily effort
+
+Todo responses also contain `expected_daily_minutes` (null or 1–1440),
+`today_spent_minutes` (0–1440), and `total_spent_minutes` (read-only sum including
+today). Lists return top-level `today` (`YYYY-MM-DD`) and `time_zone`; POST/PATCH
+return these metadata fields on the flat Todo object. GET still accepts only
+`filter`, with no date parameter. The service resolves the current day once per
+request using the required IANA `APP_TIME_ZONE` variable (default configuration:
+`Asia/Shanghai`). A missing or invalid configuration fails explicitly.
+
+PATCH accepts `expected_daily_minutes` and `daily_effort` alongside existing
+fields. Clear the expectation with null. Set the absolute total for a date with
+`{"daily_effort":{"date":"2026-11-11","minutes":35}}`; it is never an increment.
+The date must be a real Gregorian date in 0001–9999; minutes must be an integer
+from 0 to 1440. Both nested fields are required and unknown nested fields are
+rejected. Zero clears that day's minutes. Direct writes to either summary field
+are rejected. The date binds a draft to its original day across midnight; the
+clients offer no history picker. A response to an older-day update still reports
+the server's current day and a total including the older-day change.
+
+Ordinary fields, expectation, daily UPSERT, and the resulting aggregate snapshot
+share one D1 batch transaction. Repeating the same values preserves `updated_at`.
+There is no CAS/version token: concurrent writes to the same field or day's total
+use the last committed value. Completion and reopening retain all time records;
+deletion cascades to the daily table. No time entries are created or linked.
+
+Apply migration `0007_add_todo_effort.sql` before deploying the API and clients.
+Merge `vars.APP_TIME_ZONE` from the example into existing deployment config.
+Keep the new column/table during an application rollback. An older server can
+continue ordinary todo operations; clients show time tracking as unavailable
+when its response omits the new fields. Changing the configured time zone is
+not a user setting and requires a separate historical-data migration decision.
+
+Web uses its existing five-second draft queue, flushes on blur/close, and keeps
+invalid or uncertain changes for recovery. Mobile retains its existing explicit
+Save/Cancel editor. Both submit only changed fields and bind daily edits to the
+server-provided date. Clients refresh on foreground/focus and day rollover;
+stale summaries keep their date rather than displaying a fabricated zero.
 
 Examples of request bodies:
 

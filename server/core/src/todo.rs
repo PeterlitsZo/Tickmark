@@ -40,6 +40,9 @@ pub struct Todo {
     pub status: TodoStatus,
     pub created_at: i64,
     pub updated_at: i64,
+    pub expected_daily_minutes: Option<i64>,
+    pub today_spent_minutes: i64,
+    pub total_spent_minutes: i64,
 }
 
 pub struct CreateTodo {
@@ -47,10 +50,17 @@ pub struct CreateTodo {
     pub description: String,
 }
 
+pub struct DailyEffort {
+    pub date: String,
+    pub minutes: i64,
+}
+
 pub struct UpdateTodo {
     pub title: Option<String>,
     pub description: Option<String>,
     pub status: Option<TodoStatus>,
+    pub expected_daily_minutes: Option<Option<i64>>,
+    pub daily_effort: Option<DailyEffort>,
 }
 
 fn validate_title(title: &str) -> Result<(), Error> {
@@ -106,10 +116,42 @@ impl<R: TodoRepository> TodoService<R> {
         if let Some(description) = &input.description {
             validate_description(description)?;
         }
-        if input.title.is_none() && input.status.is_none() && input.description.is_none() {
+        if let Some(Some(minutes)) = input.expected_daily_minutes
+            && !(1..=1440).contains(&minutes)
+        {
+            return Err(Error::InvalidField {
+                field: "expected_daily_minutes",
+                message: "Use 1 to 1440 minutes, or null.",
+            });
+        }
+        if let Some(effort) = &input.daily_effort {
+            let valid_date = effort.date.len() == 10
+                && chrono::NaiveDate::parse_from_str(&effort.date, "%Y-%m-%d").is_ok_and(|date| {
+                    date.format("%Y-%m-%d").to_string() == effort.date
+                        && effort.date.as_str() >= "0001-01-01"
+                });
+            if !valid_date {
+                return Err(Error::InvalidField {
+                    field: "daily_effort.date",
+                    message: "Use a valid YYYY-MM-DD date from 0001-01-01 to 9999-12-31.",
+                });
+            }
+            if !(0..=1440).contains(&effort.minutes) {
+                return Err(Error::InvalidField {
+                    field: "daily_effort.minutes",
+                    message: "Use 0 to 1440 minutes.",
+                });
+            }
+        }
+        if input.title.is_none()
+            && input.status.is_none()
+            && input.description.is_none()
+            && input.expected_daily_minutes.is_none()
+            && input.daily_effort.is_none()
+        {
             return Err(Error::InvalidField {
                 field: "body",
-                message: "Provide at least one of title, status, or description.",
+                message: "Provide at least one editable todo field.",
             });
         }
         self.repository

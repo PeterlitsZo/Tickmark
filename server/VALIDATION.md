@@ -323,3 +323,13 @@ its data during rollback and use matching server/Web versions. The README
 documents these steps and the fact that server deployment bundles Web assets.
 The earlier statement that entries use a 16 KiB body limit is superseded by
 this change; categories still use 16 KiB.
+
+## Daily todo effort — 2026-11-11
+
+Implemented migration 0007 and the existing Todo API extensions, shared client parsing, Web modal autosave, and mobile explicit-save editing. Validation used local D1 and Wrangler on port 8791; the Web development proxy pointed to that local server. No production deployment or migration was performed. No test files were added.
+
+- Rust formatting and workspace Clippy with warnings denied passed. Web lint, type checking and production build passed. Mobile type checking, lint, and iOS/Android exports passed. The local Worker build passed.
+- Manual HTTP checks covered defaults; 240 historical + 20 today = 260; replacing today with 35 = 275; repeated writes without accumulation; clearing the expectation; date, type, range and unknown-field rejection; atomic rejection of a combined invalid patch; existing filters; completion/reopening; and deletion without orphan effort records. Repeating an unchanged patch after more than one second preserved updated_at.
+- Runtime Web store checks exercised a prior-day draft followed by a new-day list, a lost response after a successful write, edits made while a request was pending, reverting a pending value, and uncertain prior-day recovery. The original date stayed bound to the draft, newer input survived responses, and uncertain writes required explicit reconciliation. These were manual runtime scenarios, not committed automated tests.
+- Chromium desktop and 320px touch emulation covered summary-to-input focus, autosave, clearing an expectation, total previews, invalid minutes preventing Done from closing, menu focus, safe default focus in deletion confirmation, Escape returning to the menu trigger, and Done restoring the originating summary button. The open modal had no horizontal overflow at 320px.
+- Native mobile interaction and physical-device accessibility were not verified; mobile evidence is limited to static checks and exports. Production rollout remains migration, compatible API, then clients, with APP_TIME_ZONE configured.

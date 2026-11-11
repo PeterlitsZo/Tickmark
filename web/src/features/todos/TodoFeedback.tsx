@@ -1,3 +1,4 @@
+import { validMinutes, effortSummary } from '../../../../shared/todoEffort'
 import { isDirty, validTitle, validNotes, type TodoDraft, type TodoDraftStore } from './todoDrafts'
 import styles from './TodoPanel.module.css'
 
@@ -8,9 +9,9 @@ export function draftStatus(draft: TodoDraft, online: boolean) {
   if (draft.recovery) return 'Review recovered changes'
   if (draft.error || draft.uncertain || draft.deleteUncertain) return 'Could not save'
   if (!online && isDirty(draft)) return 'Offline · Changes kept here'
-  if (draft.flight) return ''
-  if (!validTitle(draft.title) || !validNotes(draft.description)) return 'Check your changes'
-  return ''
+  if (draft.flight) return 'Saving…'
+  if (!validTitle(draft.title) || !validNotes(draft.description) || draft.base.today && (!validMinutes(draft.spent) || !validMinutes(draft.expected, true))) return 'Check your changes'
+  return isDirty(draft) ? 'Unsaved changes' : ''
 }
 
 export function DraftFeedback({ draft, store }: { draft: TodoDraft; store: TodoDraftStore }) {
@@ -20,7 +21,7 @@ export function DraftFeedback({ draft, store }: { draft: TodoDraft; store: TodoD
     {draft.error && <p role="alert">{draft.error}</p>}
     {draft.recovery && <div className={styles.recovery}>
       <p>Your local draft is shown above. Compare it with the server before continuing.</p>
-      {draft.remote ? <details><summary>Server version</summary><strong>{draft.remote.title}</strong><p className={styles.remoteNotes}>{draft.remote.description || 'No notes'}</p><p>{draft.remote.status === 'COMPLETED' ? 'Completed' : 'Open'}</p></details> : <p>Connect and check the server to recover this draft.</p>}
+      {draft.remote ? <details><summary>Server version</summary><strong>{draft.remote.title}</strong><p className={styles.remoteNotes}>{draft.remote.description || 'No notes'}</p><p>{draft.remote.status === 'COMPLETED' ? 'Completed' : 'Open'}</p><p>{effortSummary(draft.remote)}</p></details> : <p>Connect and check the server to recover this draft.</p>}
       <div className="row"><button className="text-button" disabled={!store.online || draft.checking || draft.missing} onClick={() => { if (window.confirm('Use this local draft? It may replace newer changes on another device.')) void store.resolve(id, true) }}>Use my draft</button><button className="text-button" disabled={!store.online || draft.checking || draft.missing} onClick={() => { if (window.confirm('Discard this local draft and use the current server version?')) void store.resolve(id, false) }}>Use server version</button></div>
     </div>}
     {(draft.error || draft.uncertain || draft.recovery || draft.deleteUncertain) && !draft.missing && <button className="text-button" disabled={!store.online || draft.checking || draft.deleting} onClick={() => void store.check(id)}>{draft.uncertain || draft.recovery || draft.deleteUncertain ? 'Check server' : 'Retry'}</button>}

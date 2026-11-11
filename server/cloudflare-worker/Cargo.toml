@@ -15,3 +15,5 @@ serde_json = "1"
 futures-util = "0.3"
 indoc = "2"
 base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+chrono-tz = "0.10"

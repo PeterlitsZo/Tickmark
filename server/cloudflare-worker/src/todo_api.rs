@@ -1,7 +1,7 @@
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
-use tickmark_core::{CreateTodo, Error, Todo, TodoService, UpdateTodo};
+use tickmark_core::{CreateTodo, DailyEffort, Error, Todo, TodoService, UpdateTodo};
 use worker::{Date, Env, Method, Request, Response};
 
 use crate::{
@@ -26,6 +26,13 @@ fn present<'de, D: Deserializer<'de>, T: Deserialize<'de>>(d: D) -> Result<Optio
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct EffortInput {
+    date: String,
+    minutes: i64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PatchInput {
     #[serde(default, deserialize_with = "present")]
     title: Option<String>,
@@ -33,6 +40,10 @@ struct PatchInput {
     description: Option<String>,
     #[serde(default, deserialize_with = "present")]
     status: Option<String>,
+    #[serde(default, deserialize_with = "present")]
+    expected_daily_minutes: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "present")]
+    daily_effort: Option<EffortInput>,
 }
 
 #[derive(Serialize)]
@@ -43,6 +54,17 @@ struct Output {
     status: &'static str,
     created_at: i64,
     updated_at: i64,
+    expected_daily_minutes: Option<i64>,
+    today_spent_minutes: i64,
+    total_spent_minutes: i64,
+}
+
+#[derive(Serialize)]
+struct DatedOutput {
+    #[serde(flatten)]
+    todo: Output,
+    today: String,
+    time_zone: String,
 }
 
 impl From<Todo> for Output {
@@ -54,6 +76,9 @@ impl From<Todo> for Output {
             status: todo.status.as_str(),
             created_at: todo.created_at,
             updated_at: todo.updated_at,
+            expected_daily_minutes: todo.expected_daily_minutes,
+            today_spent_minutes: todo.today_spent_minutes,
+            total_spent_minutes: todo.total_spent_minutes,
         }
     }
 }
@@ -116,7 +141,12 @@ pub(crate) async fn handle(mut req: Request, env: Env) -> Result<Response, ApiEr
             "The requested route does not exist.",
         ));
     };
-    let service = TodoService::new(D1TodoRepository(env.d1("DB").map_err(internal)?));
+    let timestamp = now();
+    let (today, time_zone) = day_context(&env, timestamp)?;
+    let service = TodoService::new(D1TodoRepository(
+        env.d1("DB").map_err(internal)?,
+        today.clone(),
+    ));
     match (method, id) {
         (Method::Post, None) => {
             let input: CreateInput =
@@ -127,12 +157,16 @@ pub(crate) async fn handle(mut req: Request, env: Env) -> Result<Response, ApiEr
                         title: input.title,
                         description: input.description,
                     },
-                    now(),
+                    timestamp,
                 )
                 .await?;
-            Ok(Response::from_json(&Output::from(todo))
-                .map_err(internal)?
-                .with_status(201))
+            Ok(Response::from_json(&DatedOutput {
+                todo: todo.into(),
+                today,
+                time_zone,
+            })
+            .map_err(internal)?
+            .with_status(201))
         }
         (Method::Get, None) => {
             let expression = filter(&req)?;
@@ -142,12 +176,13 @@ pub(crate) async fn handle(mut req: Request, env: Env) -> Result<Response, ApiEr
                 .into_iter()
                 .map(Into::into)
                 .collect();
-            Response::from_json(&json!({"items": items})).map_err(internal)
+            Response::from_json(&json!({"items": items, "today": today, "time_zone": time_zone}))
+                .map_err(internal)
         }
         (Method::Patch, Some(id)) => {
             let input: PatchInput = json_input_with_limit(
                 &mut req,
-                "Provide title, status, and/or description as strings; null and unknown fields are not allowed.",
+                "Provide editable todo fields with valid types. Only expected_daily_minutes accepts null; daily_effort requires date and integer minutes. Unknown fields are not allowed.",
                 JsonBodyLimit::Description,
             )
             .await?;
@@ -158,11 +193,21 @@ pub(crate) async fn handle(mut req: Request, env: Env) -> Result<Response, ApiEr
                         title: input.title,
                         description: input.description,
                         status: input.status.map(|s| s.parse()).transpose()?,
+                        expected_daily_minutes: input.expected_daily_minutes,
+                        daily_effort: input.daily_effort.map(|e| DailyEffort {
+                            date: e.date,
+                            minutes: e.minutes,
+                        }),
                     },
-                    now(),
+                    timestamp,
                 )
                 .await?;
-            Response::from_json(&Output::from(todo)).map_err(internal)
+            Response::from_json(&DatedOutput {
+                todo: todo.into(),
+                today,
+                time_zone,
+            })
+            .map_err(internal)
         }
         (Method::Delete, Some(id)) => {
             service.delete(id).await?;
@@ -174,4 +219,16 @@ pub(crate) async fn handle(mut req: Request, env: Env) -> Result<Response, ApiEr
 
 fn now() -> i64 {
     (Date::now().as_millis() / 1000) as i64
+}
+
+// Resolve the request's day once, never from a client device or a query parameter.
+pub(crate) fn day_context(env: &Env, timestamp: i64) -> Result<(String, String), ApiError> {
+    let name = env.var("APP_TIME_ZONE").map_err(internal)?.to_string();
+    let zone: chrono_tz::Tz = name.parse().map_err(internal)?;
+    let instant = chrono::DateTime::from_timestamp(timestamp, 0)
+        .ok_or_else(|| internal("Invalid current timestamp"))?;
+    Ok((
+        instant.with_timezone(&zone).format("%Y-%m-%d").to_string(),
+        name,
+    ))
 }

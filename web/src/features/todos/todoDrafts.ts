@@ -1,3 +1,4 @@
+import { validMinutes } from '../../../../shared/todoEffort'
 import type { QueryClient } from '@tanstack/react-query'
 import { ApiError, object } from '../../api/client'
 import { parseTodo, todosApi, type Todo, type TodoPatch, type TodoStatus } from '../../api/todos'
@@ -7,13 +8,17 @@ export const validTitle = (value: string) => [...value].length > 0 && [...value]
 export const validNotes = (value: string) => [...value].length <= 10_000
 const interval = 5000
 const storagePrefix = 'tickmark.todo-draft.v1.'
-type Field = 'title' | 'description'
-const fields: Field[] = ['title', 'description']
+type Field = 'title' | 'description' | 'expected' | 'spent'
+const fields: Field[] = ['title', 'description', 'expected', 'spent']
+const baseValue = (todo: Todo, field: Field) => field === 'expected' ? String(todo.expected_daily_minutes ?? '') : field === 'spent' ? String(todo.today_spent_minutes ?? '') : todo[field]
+const sentValue = (patch: TodoPatch | undefined, field: Field) => field === 'expected' ? patch?.expected_daily_minutes === undefined ? undefined : String(patch.expected_daily_minutes ?? '') : field === 'spent' ? patch?.daily_effort === undefined ? undefined : String(patch.daily_effort.minutes) : patch?.[field]
 
 export type TodoDraft = {
   base: Todo
   title: string
   description: string
+  expected: string
+  spent: string
   pendingStatus?: TodoStatus
   sent?: TodoPatch
   remote?: Todo
@@ -31,7 +36,9 @@ export type TodoDraft = {
   flight?: Promise<void>
 }
 
-export const isDirty = (draft: TodoDraft) => fields.some(field => draft[field] !== draft.base[field]) || draft.pendingStatus !== undefined
+const locallyChanged = (draft: TodoDraft, field: Field) => draft[field] !== baseValue(draft.base, field) || sentValue(draft.sent, field) !== undefined && draft[field] !== sentValue(draft.sent, field)
+
+export const isDirty = (draft: TodoDraft) => fields.some(field => draft[field] !== baseValue(draft.base, field)) || draft.pendingStatus !== undefined
 export const needsAttention = (draft: TodoDraft) => isDirty(draft) || !!draft.flight || draft.recovery || draft.uncertain || draft.deleteUncertain || draft.deleting || !!draft.error || draft.missing
 
 // The store belongs to QueryClient, not the editor. Timers and in-flight writes
@@ -63,6 +70,8 @@ export class TodoDraftStore {
           if (key !== storagePrefix + base.id) throw new Error('Invalid draft ID')
           const draft = this.ensure(base)
           draft.title = value.title; draft.description = value.description
+          if (typeof value.expected === 'string') draft.expected = value.expected
+          if (typeof value.spent === 'string') draft.spent = value.spent
           if (value.pendingStatus === 'OPEN' || value.pendingStatus === 'COMPLETED') draft.pendingStatus = value.pendingStatus
           draft.deleteUncertain = value.deleteUncertain === true
           // A reload can interrupt a request after it has already reached D1.
@@ -77,7 +86,7 @@ export class TodoDraftStore {
   ensure(todo: Todo): TodoDraft {
     let draft = this.drafts.get(todo.id)
     if (!draft) {
-      draft = { base: todo, title: todo.title, description: todo.description, error: '', recovery: false, uncertain: false, missing: false, deleting: false, deleteUncertain: false, checking: false, composing: new Set(), lastStarted: 0 }
+      draft = { base: todo, title: todo.title, description: todo.description, expected: baseValue(todo, 'expected'), spent: baseValue(todo, 'spent'), error: '', recovery: false, uncertain: false, missing: false, deleting: false, deleteUncertain: false, checking: false, composing: new Set(), lastStarted: 0 }
       this.drafts.set(todo.id, draft)
     }
     return draft
@@ -87,7 +96,7 @@ export class TodoDraftStore {
     try {
       const key = storagePrefix + draft.base.id
       if (needsAttention(draft)) {
-        localStorage.setItem(key, JSON.stringify({ base: draft.base, title: draft.title, description: draft.description, pendingStatus: draft.pendingStatus, uncertain: draft.uncertain || !!draft.flight, deleteUncertain: draft.deleteUncertain || draft.deleting }))
+        localStorage.setItem(key, JSON.stringify({ base: draft.base, title: draft.title, description: draft.description, expected: draft.expected, spent: draft.spent, pendingStatus: draft.pendingStatus, uncertain: draft.uncertain || !!draft.flight, deleteUncertain: draft.deleteUncertain || draft.deleting }))
       } else localStorage.removeItem(key)
     } catch { this.storageFailed() }
   }
@@ -98,18 +107,21 @@ export class TodoDraftStore {
     const present = new Map(items.map(todo => [todo.id, todo]))
     for (const [id, draft] of this.drafts) {
       if (draft.flight || draft.deleting || draft.checking) continue
-      const remote = present.get(id)
+      let remote = present.get(id)
       if (!remote) {
         if (complete && needsAttention(draft)) { draft.missing = true; draft.error = 'This todo no longer exists. Copy your draft before dismissing it.'; this.cancelTimer(draft) }
         continue
       }
       draft.remote = remote
+      if (draft.base.today !== remote.today && draft.spent !== baseValue(draft.base, 'spent')) {
+        remote = { ...remote, today: draft.base.today, today_spent_minutes: draft.base.today_spent_minutes }
+      }
       if (draft.recovery || draft.uncertain || draft.error) continue
-      const changedElsewhere = fields.some(field => draft[field] !== draft.base[field] && remote[field] !== draft.base[field] && remote[field] !== draft[field])
+      const changedElsewhere = fields.some(field => draft[field] !== baseValue(draft.base, field) && baseValue(remote, field) !== baseValue(draft.base, field) && baseValue(remote, field) !== draft[field])
       if (changedElsewhere) {
         draft.recovery = true; this.cancelTimer(draft)
       } else {
-        for (const field of fields) if (draft[field] === draft.base[field]) draft[field] = remote[field]
+        for (const field of fields) if (draft[field] === baseValue(draft.base, field)) draft[field] = baseValue(remote, field)
         draft.base = remote
         if (draft.pendingStatus === remote.status) draft.pendingStatus = undefined
       }
@@ -140,6 +152,10 @@ export class TodoDraftStore {
     const patch: TodoPatch = {}
     if (!draft.composing.has('title') && draft.title !== draft.base.title && validTitle(draft.title)) patch.title = draft.title
     if (!draft.composing.has('description') && draft.description !== draft.base.description && validNotes(draft.description)) patch.description = draft.description
+    if (draft.base.today) {
+      if (draft.expected !== baseValue(draft.base, 'expected') && validMinutes(draft.expected, true)) patch.expected_daily_minutes = draft.expected === '' ? null : Number(draft.expected)
+      if (draft.spent !== baseValue(draft.base, 'spent') && validMinutes(draft.spent)) patch.daily_effort = { date: draft.base.today, minutes: Number(draft.spent) }
+    }
     if (draft.pendingStatus !== undefined && draft.pendingStatus !== draft.base.status) patch.status = draft.pendingStatus
     return patch
   }
@@ -177,13 +193,21 @@ export class TodoDraftStore {
     draft.sent = input
     draft.flight = (async () => {
       try {
-        const saved = await todosApi.patch(draft.base.id, input)
+        let saved = await todosApi.patch(draft.base.id, input)
+        const response = saved
+        if (saved.today !== draft.base.today && draft.spent !== (input.daily_effort ? String(input.daily_effort.minutes) : baseValue(draft.base, 'spent'))) {
+          saved = { ...saved, today: draft.base.today, today_spent_minutes: input.daily_effort?.minutes ?? draft.base.today_spent_minutes }
+        } else if (saved.today !== draft.base.today) draft.spent = baseValue(saved, 'spent')
         // Never replace the live text: it may be newer than this response.
-        for (const field of fields) if (input[field] === undefined && draft[field] === draft.base[field]) draft[field] = saved[field]
-        draft.base = saved; draft.remote = saved
+        for (const field of fields) if (sentValue(input, field) === undefined && draft[field] === baseValue(draft.base, field)) draft[field] = baseValue(saved, field)
+        for (const field of ['spent', 'expected'] as const) {
+          const sent = sentValue(input, field)
+          if (sent !== undefined && Number(draft[field]) === Number(sent) && (field !== 'expected' || (draft[field] === '') === (sent === ''))) draft[field] = baseValue(saved, field)
+        }
+        draft.base = saved; draft.remote = response
         if (input.status === draft.pendingStatus) draft.pendingStatus = undefined
         draft.sent = undefined
-        await this.commit(saved)
+        await this.commit(response)
       } catch (cause) {
         const api = cause instanceof ApiError ? cause : null
         draft.error = api ? Object.values(api.fields).join(' ') || api.message : 'Could not save this todo.'
@@ -235,7 +259,7 @@ export class TodoDraftStore {
     if (draft.flight) await draft.flight
     try {
       const items = await todosApi.list('ALL')
-      const remote = items.find(item => item.id === id)
+      let remote = items.find(item => item.id === id)
       if (!remote) {
         if (draft.deleteUncertain) { await this.forgetDeleted(id); return }
         draft.missing = true; draft.error = 'This todo no longer exists. Copy your draft before dismissing it.'
@@ -244,12 +268,14 @@ export class TodoDraftStore {
       draft.remote = remote
       await this.commit(remote)
       if (draft.deleteUncertain) { draft.error = 'Deletion is not confirmed. The original request may still finish. Check again or explicitly retry deletion.'; return }
-      const conflict = fields.some(field => draft[field] !== draft.base[field] && remote[field] !== draft.base[field] && remote[field] !== draft[field] && remote[field] !== draft.sent?.[field])
+      const crossedDay = remote.today !== draft.base.today && locallyChanged(draft, 'spent')
+      if (crossedDay) remote = { ...remote, today: draft.base.today, today_spent_minutes: draft.base.today_spent_minutes }
+      const conflict = fields.some(field => draft[field] !== baseValue(draft.base, field) && baseValue(remote, field) !== baseValue(draft.base, field) && baseValue(remote, field) !== draft[field] && baseValue(remote, field) !== sentValue(draft.sent, field))
       if (draft.pendingStatus === remote.status) draft.pendingStatus = undefined
-      if (draft.recovery || conflict || (draft.uncertain && !Object.entries(draft.sent ?? {}).every(([key, value]) => remote[key as keyof Todo] === value))) {
+      if (draft.recovery || conflict || crossedDay && draft.uncertain || (draft.uncertain && (!draft.sent || !Object.entries(draft.sent).every(([key, value]) => key === 'daily_effort' ? remote.today === draft.sent?.daily_effort?.date && remote.today_spent_minutes === draft.sent?.daily_effort?.minutes : remote[key as keyof Todo] === value)))) {
         draft.recovery = true
       } else {
-        for (const field of fields) if (draft[field] === draft.base[field]) draft[field] = remote[field]
+        for (const field of fields) if (!locallyChanged(draft, field)) draft[field] = baseValue(remote, field)
         draft.base = remote; draft.error = ''; draft.uncertain = false; draft.sent = undefined
       }
       return true
@@ -263,11 +289,12 @@ export class TodoDraftStore {
     // Compare once more before an explicit recovery decision is applied.
     const checked = await this.check(id)
     if (!checked || !draft.remote || draft.missing || draft.checking || draft.deleteUncertain || !this.online) return
-    const remote = draft.remote
-    if (!useDraft) { draft.title = remote.title; draft.description = remote.description; draft.pendingStatus = undefined }
+    let remote = draft.remote
+    if (useDraft && remote.today !== draft.base.today && locallyChanged(draft, 'spent')) remote = { ...remote, today: draft.base.today, today_spent_minutes: draft.base.today_spent_minutes }
+    if (!useDraft) { for (const field of fields) draft[field] = baseValue(remote, field); draft.pendingStatus = undefined }
     else {
       // Only locally modified fields should replace the latest remote values.
-      for (const field of fields) if (draft[field] === draft.base[field]) draft[field] = remote[field]
+      for (const field of fields) if (!locallyChanged(draft, field)) draft[field] = baseValue(remote, field)
     }
     draft.base = remote; draft.recovery = false; draft.uncertain = false; draft.error = ''; draft.sent = undefined
     this.persist(draft); this.emit()

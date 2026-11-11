@@ -169,3 +169,54 @@
 .modalEditor textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .statusField { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .deleteTodo { align-self: flex-start; color: var(--danger); padding: 8px 0; }
+
+/* Compact todo editor: content first, daily input next, settings last. */
+.sheet { width: min(520px, calc(100vw - 24px)); border-radius: 14px; }
+.sheetHeader { border: 0; padding: 12px 18px 0; gap: 8px; }
+.sheetHeader > span { padding-left: 6px; font-size: 12px; color: var(--muted); }
+.modalActions { display: flex; position: relative; }
+.modalMenu { position: absolute; right: 36px; top: 40px; z-index: 1; white-space: nowrap; background: var(--surface); padding: 4px; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 24px #29252414; }
+.modalMenu button { color: var(--danger); padding: 8px 12px; }
+.sheetContent { padding: 12px 24px 16px; min-height: 0; }
+.modalEditor { gap: 8px; }
+.modalEditor textarea { border-color: transparent; padding: 4px; margin-left: -5px; width: calc(100% + 10px); field-sizing: content; resize: none; }
+.modalEditor textarea:hover { border-color: var(--line); }
+.modalEditor .modalTitle { font-size: 26px; font-weight: 600; line-height: 1.25; letter-spacing: -.5px; margin-bottom: 10px; }
+.modalEditor .modalNotes { color: var(--muted); min-height: 54px; font-size: 14px; margin-bottom: 12px; }
+.effort { padding: 16px 18px; border-radius: 10px; background: var(--wash); }
+.effortHeading { display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+.effortHeading strong { font-size: 13px; font-weight: 500; }
+.effortHeading span { font-size: 11px; color: var(--muted); }
+.effortNumbers { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 24px; }
+.effortNumbers label, .totalLabel { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.minutes { display: flex; align-items: baseline; gap: 8px; }
+.minutes input { width: 86px; min-width: 0; font-size: 24px; padding: 5px 9px; }
+.effort input { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font-variant-numeric: tabular-nums; appearance: textfield; }
+.effort input::-webkit-inner-spin-button, .effort input::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.minutes span, .expectation, .totalHint { font-size: 12px; color: var(--muted); }
+.total { display: block; font-size: 24px; font-weight: 500; padding: 5px 0; line-height: 1.3; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.totalHint { font-size: 11px; }
+.expectation { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--line); margin-top: 16px; padding-top: 12px; }
+.expectation input { width: 64px; padding: 5px 6px; text-align: center; font-size: 14px; }
+.expectationValue { display: inline-flex; align-items: center; gap: 8px; }
+.expectation label { font-size: 12px; }
+.dayNotice { font-size: 12px; line-height: 1.5; color: var(--muted); margin-bottom: 12px; }
+.sheetFooter { flex-shrink: 0; padding: 12px 24px max(12px, env(safe-area-inset-bottom)); }
+.sheetStatus { font-size: 12px; }
+.deleteConfirm { padding: 12px 24px; border-top: 1px solid var(--line); font-size: 13px; }
+.deleteConfirm .row { justify-content: flex-end; }
+.effortSummary { display: block; margin-left: 29px; padding: 3px 0; color: var(--muted); text-align: left; font-size: 11px; }
+.effortSummary:hover { color: var(--accent); }
+@media (max-width: 400px) {
+  .sheetContent { padding: 10px 18px 14px; }
+  .effort { padding: 14px; }
+  .effortNumbers { gap: 12px; }
+  .minutes input { width: 68px; font-size: 22px; }
+  .total { font-size: 22px; }
+  .sheetFooter { padding-inline: 18px; }
+}
+@media (pointer: coarse) {
+  .modalEditor .modalNotes, .expectation input { font-size: 16px; }
+  .effortSummary { margin-left: 49px; min-height: 44px; }
+  .modalMenu button { min-height: 44px; }
+}

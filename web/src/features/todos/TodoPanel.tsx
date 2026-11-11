@@ -1,3 +1,4 @@
+import { dateInZone, effortSummary, validMinutes } from '../../../../shared/todoEffort'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useBlocker } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -25,7 +26,7 @@ export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; o
   const selectedFilter = filterState.selectedId
   const [addedOutside, setAddedOutside] = useState<Todo | null>(null)
   const [title, setTitle] = useState('')
-  const [editing, setEditing] = useState<{ id: string; field: 'title' | 'description' } | null>(null)
+  const [editing, setEditing] = useState<{ id: string; field: 'title' | 'description' | 'spent' } | null>(null)
   const [busy, setBusy] = useState(false)
   const creating = useRef(false)
   const [error, setError] = useState('')
@@ -33,7 +34,7 @@ export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; o
   const [notice, setNotice] = useState('')
   const [completed, setCompleted] = useState<Todo | null>(null)
   const dismissNotice = useCallback(() => { setNotice(''); setCompleted(null); setAddedOutside(null) }, [])
-  const query = useQuery({ queryKey: todoKey, queryFn: ({ signal }) => todosApi.list('ALL', signal), retry: false, networkMode: 'always', staleTime: 15000 })
+  const query = useQuery({ queryKey: todoKey, queryFn: ({ signal }) => todosApi.list('ALL', signal), retry: false, networkMode: 'always', staleTime: 15000, refetchOnWindowFocus: 'always' })
   const filteredQuery = useQuery({
     queryKey: ['todo-filter-results', selected?.filter_expr],
     queryFn: ({ signal }) => todosApi.listExpression(selected!.filter_expr, signal),
@@ -44,6 +45,25 @@ export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; o
   useEffect(() => { if (query.data) store.ingest(query.data) }, [store, query.data])
   useEffect(() => { if (filteredQuery.data && filteredQuery.dataUpdatedAt >= query.dataUpdatedAt) store.ingest(filteredQuery.data, false) }, [store, filteredQuery.data, filteredQuery.dataUpdatedAt, query.dataUpdatedAt])
   useEffect(() => { store.setOnline(online) }, [store, online])
+  useEffect(() => {
+    let refreshing = false
+    let lastAttempt = 0
+    const refreshDay = () => {
+      if (!store.online || refreshing || Date.now() - lastAttempt < 15000) return
+      const cached = client.getQueryData<Todo[]>(todoKey)
+      if (cached?.some(todo => todo.time_zone && todo.today !== dateInZone(todo.time_zone))) {
+        refreshing = true
+        lastAttempt = Date.now()
+        void store.flushAll().then(async () => {
+          await client.invalidateQueries({ queryKey: ['todos'] })
+          await client.invalidateQueries({ queryKey: ['todo-filter-results'] })
+        }).finally(() => { refreshing = false })
+      }
+    }
+    const timer = setInterval(refreshDay, 1000)
+    window.addEventListener('focus', refreshDay)
+    return () => { clearInterval(timer); window.removeEventListener('focus', refreshDay) }
+  }, [client, store])
   const dirty = [...store.drafts.values()].some(needsAttention)
   useBlocker({
     shouldBlockFn: async ({ current, next }) => {
@@ -54,7 +74,7 @@ export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; o
     },
     enableBeforeUnload: dirty || title.length > 0 || busy || uncertain,
   })
-  async function open(todo: Todo, field: 'title' | 'description') {
+  async function open(todo: Todo, field: 'title' | 'description' | 'spent') {
     store.ensure(todo)
     if (!expanded) onToggle()
     if (editing && editing.id !== todo.id) void store.flush(editing.id)
@@ -62,9 +82,11 @@ export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; o
   }
   async function exit() {
     const id = editing?.id
-    if (id) await store.flush(id)
+    if (id && !await store.flush(id)) {
+      panel.current?.querySelector<HTMLElement>('dialog [aria-invalid="true"]')?.focus()
+      return
+    }
     setEditing(null)
-    if (id) requestAnimationFrame(() => panel.current?.querySelector<HTMLButtonElement>(`[data-todo-trigger="${id}"]`)?.focus({ preventScroll: true }))
   }
   async function status(todo: Todo) {
     const next = todo.status === 'OPEN' ? 'COMPLETED' : 'OPEN'
@@ -73,8 +95,8 @@ export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; o
       setCompleted(next === 'COMPLETED' ? todo : null)
     }
   }
-  async function remove(todo: Todo) {
-    if (!window.confirm('Delete this todo and its local draft? This cannot be undone.')) return
+  async function remove(todo: Todo, confirmed = false) {
+    if (!confirmed && !window.confirm('Delete this todo and its time records? This cannot be undone.')) return
     if (await store.remove(todo)) {
       if (editing?.id === todo.id) setEditing(null)
       setNotice('Todo deleted.'); setCompleted(null)
@@ -138,6 +160,11 @@ export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; o
         <ul className={styles.list} aria-label={selected ? `${selected.name} todos` : 'All todos'}>{visibleTodos.map(todo => {
           const draft = store.ensure(todo)
           const current = draft
+          const summary = effortSummary({ ...draft.base,
+            expected_daily_minutes: validMinutes(draft.expected, true) ? draft.expected === '' ? null : Number(draft.expected) : draft.base.expected_daily_minutes,
+            today_spent_minutes: draft.base.today && validMinutes(draft.spent) ? Number(draft.spent) : draft.base.today_spent_minutes,
+            total_spent_minutes: draft.base.today && validMinutes(draft.spent) ? draft.base.total_spent_minutes! - draft.base.today_spent_minutes! + Number(draft.spent) : draft.base.total_spent_minutes,
+          })
           const locked = !online || !!(draft && (draft.deleting || draft.checking || draft.recovery || draft.uncertain || draft.error || draft.missing || draft.pendingStatus))
           return <li key={todo.id} className={styles.item}>
 
@@ -147,12 +174,13 @@ export function TodoPanel({ expanded, onToggle, online }: { expanded: boolean; o
                 <TodoActions title={current.title} disabled={!!draft?.deleting} onDelete={() => void remove(todo)} />
               </div>
               <TodoNotesPreview value={current.description} onOpen={() => void open(todo, 'description')} />
+              {summary && <button className={styles.effortSummary} onClick={() => void open(todo, 'spent')}>{summary}</button>}
               {draft && draftStatus(draft, online) && <div className={styles.noteBody}><p className={styles.saveStatus} role="status">{draftStatus(draft, online)}</p><DraftFeedback draft={draft} store={store} /></div>}
           </li>
         })}</ul>
       </div>
     </div>
-    {active && editing && <TodoSheet key={editing.id} draft={active} store={store} initialField={editing.field} onStatus={() => void status(active.base)} onDelete={() => void remove(active.base)} onClose={() => void exit()} />}
+    {active && editing && <TodoSheet key={editing.id} draft={active} store={store} initialField={editing.field} onStatus={() => void status(active.base)} onDelete={() => void remove(active.base, true)} onClose={() => void exit()} />}
     <NotificationViewport notice={notice} onDismiss={dismissNotice} action={addedOutside ? { label: 'View todo', onClick: () => { selectFilter(''); void open(addedOutside, 'title'); dismissNotice() } } : completed ? { label: completed.description ? 'Edit note' : 'Add note', onClick: () => { void open(store.drafts.get(completed.id)?.base ?? completed, 'description'); dismissNotice() } } : undefined}>{busy && <p className="notification-card" role="status">Adding todo…</p>}</NotificationViewport>
   </section>
 }

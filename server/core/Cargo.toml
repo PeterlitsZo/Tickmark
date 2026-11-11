@@ -7,3 +7,4 @@ rust-version.workspace = true
 [dependencies]
 filter-expr = "0.6.0"
 filter-expr-evaler = { version = "0.6.0", features = ["js"] }
+chrono = { version = "0.4", default-features = false, features = ["std"] }

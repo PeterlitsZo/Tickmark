@@ -11,7 +11,9 @@ pub use saved_todo_filter::{
 };
 
 use std::fmt;
-pub use todo::{CreateTodo, Todo, TodoRepository, TodoService, TodoStatus, UpdateTodo};
+pub use todo::{
+    CreateTodo, DailyEffort, Todo, TodoRepository, TodoService, TodoStatus, UpdateTodo,
+};
 
 pub const MAX_TIMESTAMP: i64 = 9_007_199_254_740_991;
 

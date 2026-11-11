@@ -17,6 +17,7 @@
     "not_found_handling": "none",
     "run_worker_first": ["/api", "/api/*"]
   },
+  "vars": { "APP_TIME_ZONE": "Asia/Shanghai" },
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1

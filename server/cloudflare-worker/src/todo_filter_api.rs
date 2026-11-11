@@ -77,12 +77,15 @@ pub(crate) async fn handle(mut req: Request, env: Env) -> Result<Response, ApiEr
             "The requested route does not exist.",
         ));
     };
+    let now = (Date::now().as_millis() / 1000) as i64;
     let service = TodoFilterService::new(
         D1TodoFilterRepository(env.d1("DB").map_err(internal)?),
-        D1TodoRepository(env.d1("DB").map_err(internal)?),
+        D1TodoRepository(
+            env.d1("DB").map_err(internal)?,
+            crate::todo_api::day_context(&env, now)?.0,
+        ),
     );
-    let now = (Date::now().as_millis() / 1000) as i64;
-    let result = match (method, id) {
+    match (method, id) {
         (Method::Get, None) => {
             let items: Vec<Output> = service.list().await?.into_iter().map(Into::into).collect();
             Response::from_json(&json!({"items": items})).map_err(internal)
@@ -127,8 +130,7 @@ pub(crate) async fn handle(mut req: Request, env: Env) -> Result<Response, ApiEr
             Ok(Response::empty().map_err(internal)?.with_status(204))
         }
         _ => unreachable!(),
-    };
-    result
+    }
 }
 
 fn config_error(error: tickmark_core::Error) -> ApiError {
